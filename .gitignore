@@ -1,58 +1,58 @@
 ```
-# Compiled and build artifacts
-*.obj
-*.exe
-*.dll
-*.lib
-*.pdb
-*.exp
-*.ilk
-*.iobj
-*.ipdb
-*.tlog
-*.lastbuildstate
-*.vcxproj.user
-*.vcproj.user
-*.sdf
-*.opensdf
-*.suo
-*.nib
-*.pch
-*.res
-
-# Build directories
-Debug/
-Release/
-x64/
-Win32/
+# Build artifacts
 build/
-dist/
-bin/
-obj/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+*.o
+*.a
+*.so
+*.exe
+*.out
 
 # Dependencies
 node_modules/
-vendor/
 
 # Logs and temp files
 *.log
 *.tmp
-*.temp
-*.cache
 
 # Editors
 .vscode/
 .idea/
-*.swp
-*.swo
-
-# OS specific
-.DS_Store
-Thumbs.db
-ehthumbs.db
 
 # Environment
 .env
 .env.local
-.env.*
+*.env.*
+
+# Coverage
+coverage/
+htmlcov/
+.coverage
+
+# Compression files
+*.zip
+*.gz
+*.tar
+*.tgz
+*.bz2
+*.xz
+*.7z
+*.rar
+*.zst
+*.lz4
+*.lzh
+*.cab
+*.arj
+*.rpm
+*.deb
+*.Z
+*.lz
+*.lzo
+*.tar.gz
+*.tar.bz2
+*.tar.xz
+*.tar.zst
 ```
