@@ -1,58 +1,50 @@
 ```
-# Compiled and build artifacts
+# Build artifacts
+build/
+dist/
+*.o
 *.obj
 *.exe
 *.dll
-*.lib
-*.pdb
-*.exp
-*.ilk
-*.iobj
-*.ipdb
-*.tlog
-*.lastbuildstate
-*.vcxproj.user
-*.vcproj.user
-*.sdf
-*.opensdf
-*.suo
-*.nib
-*.pch
-*.res
-
-# Build directories
-Debug/
-Release/
-x64/
-Win32/
-build/
-dist/
-bin/
-obj/
+*.so
+*.a
+*.out
 
 # Dependencies
 node_modules/
-vendor/
+venv/
+.venv/
+__pycache__/
+*.egg-info/
 
-# Logs and temp files
-*.log
-*.tmp
-*.temp
-*.cache
+# CMake
+CMakeFiles/
+cmake-build-*/
+Makefile
+*.cmake
 
-# Editors
+# IDE
 .vscode/
 .idea/
 *.swp
 *.swo
 
-# OS specific
-.DS_Store
-Thumbs.db
-ehthumbs.db
+# Logs and temp files
+*.log
+*.tmp
+*.temp
 
 # Environment
 .env
 .env.local
-.env.*
+*.env.*
+
+# Coverage
+coverage/
+htmlcov/
+.coverage
+
+# OS
+.DS_Store
+Thumbs.db
 ```
