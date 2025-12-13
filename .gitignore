@@ -1,0 +1,58 @@
+```
+# Compiled and build artifacts
+*.obj
+*.exe
+*.dll
+*.lib
+*.pdb
+*.exp
+*.ilk
+*.iobj
+*.ipdb
+*.tlog
+*.lastbuildstate
+*.vcxproj.user
+*.vcproj.user
+*.sdf
+*.opensdf
+*.suo
+*.nib
+*.pch
+*.res
+
+# Build directories
+Debug/
+Release/
+x64/
+Win32/
+build/
+dist/
+bin/
+obj/
+
+# Dependencies
+node_modules/
+vendor/
+
+# Logs and temp files
+*.log
+*.tmp
+*.temp
+*.cache
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS specific
+.DS_Store
+Thumbs.db
+ehthumbs.db
+
+# Environment
+.env
+.env.local
+.env.*
+```
