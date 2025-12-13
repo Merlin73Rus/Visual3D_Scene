@@ -1,5 +1,5 @@
-#ifndef HORIZONDIAGNOSTICAPP_H
-#define HORIZONDIAGNOSTICAPP_H
+#ifndef AVIATIONHORIZONSIMULATOR_H
+#define AVIATIONHORIZONSIMULATOR_H
 
 #include <OGRE/Ogre.h>
 #include <OGRE/OgreApplicationContext.h>
@@ -9,24 +9,16 @@
 #include <OISKeyboard.h>
 #include <OISJoyStick.h>
 #include <vector>
-#include <string>
 
-struct HorizonImage {
-    int rollDirection;  // -1 for left, 1 for right
-    int rotationAngle;  // in degrees (0, 90, 180, 270)
-    bool answered;
-    bool correctAnswer;
-};
-
-class HorizonDiagnosticApp : public Ogre::FrameListener,
-                             public Ogre::WindowEventListener,
-                             public OIS::KeyListener,
-                             public OIS::MouseListener,
-                             public OIS::JoyStickListener
+class AviationHorizonSimulator : public Ogre::FrameListener,
+                                 public Ogre::WindowEventListener,
+                                 public OIS::KeyListener,
+                                 public OIS::MouseListener,
+                                 public OIS::JoyStickListener
 {
 public:
-    HorizonDiagnosticApp();
-    virtual ~HorizonDiagnosticApp();
+    AviationHorizonSimulator();
+    virtual ~AviationHorizonSimulator();
 
     void setup();
     void shutdown();
@@ -57,40 +49,46 @@ private:
     void createScene();
     void setupCamera();
     void setupLights();
+    void setupInstruments();
     void setupInput();
+    void updateAircraft(const Ogre::FrameEvent& fe);
+    void updateFlightParameters(const Ogre::FrameEvent& fe);
+    void updateJoystickInput();
+    void updateInstruments();
     void createArtificialHorizon();
-    void generateHorizonImages();
-    void displayCurrentHorizon();
-    void nextHorizon();
-    void startModule(int moduleNum);
-    void saveResults();
-    void displayResults();
+    void createAltimeter();
+    void createAirspeedIndicator();
     
     Ogre::Root* mRoot;
     Ogre::SceneManager* mSceneMgr;
     Ogre::Camera* mCamera;
     Ogre::RenderWindow* mWindow;
-    Ogre::ManualObject* mHorizonDisplay;
-    Ogre::SceneNode* mHorizonNode;
+    Ogre::SceneNode* mInstrumentPanelNode;
+    
+    // Instrument displays
+    Ogre::ManualObject* mHorizonManualObj;
+    Ogre::ManualObject* mAltimeterManualObj;
+    Ogre::ManualObject* mAirspeedManualObj;
     
     OIS::InputManager* mInputManager;
     OIS::Keyboard* mKeyboard;
     OIS::Mouse* mMouse;
     OIS::JoyStick* mJoyStick;
 
-    // Diagnostic state
-    int mCurrentModule;        // 1 or 2
-    int mCurrentImage;         // current image index
-    int mTotalImages;          // 50 for each module
-    std::vector<HorizonImage> mHorizonImages;
-    Ogre::Timer mTimer;        // for timing 3-second intervals
-    bool mImageDisplayed;      // track if image is currently shown
-    int mUserAnswer;           // -1 for left, 1 for right, 0 for no answer
-    int mCorrectAnswers;       // count for current module
-    std::string mResultsFile;
+    // Flight parameters
+    Ogre::Real mPitch;      // in radians
+    Ogre::Real mRoll;       // in radians
+    Ogre::Real mYaw;        // in radians
+    Ogre::Real mVelocity;   // in m/s
+    Ogre::Real mAltitude;   // in meters
+    
+    // Control inputs from joystick
+    float mThrottle;
+    float mStickX;  // Aileron control (-1 to 1)
+    float mStickY;  // Elevator control (-1 to 1)
+    float mRudder;  // Rudder control (-1 to 1)
     
     bool mExitApp;
-    bool mTestRunning;
 };
 
-#endif // HORIZONDIAGNOSTICAPP_H
+#endif // AVIATIONHORIZONSIMULATOR_H

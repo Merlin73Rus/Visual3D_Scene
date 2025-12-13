@@ -1,444 +1,388 @@
-#include "../include/TailViewAircraftSimulator.h"
-
-#ifdef _WIN32
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-#endif
-
-#include <GL/glew.h>
-#include <GLFW/glfw3.h>
+#include "TailViewAircraftSimulator.h"
 #include <iostream>
-#include <cmath>
+#include <sstream>
 
-// Include libraries for joystick support
-#include <GLFW/glfw3.h>
-
-// Define constants
-const float PI = 3.14159265359f;
-const float DEG_TO_RAD = PI / 180.0f;
-const float RAD_TO_DEG = 180.0f / PI;
-
-// Implementation of TailViewAircraftSimulator class
-TailViewAircraftSimulator::TailViewAircraftSimulator() 
-    : m_running(false), m_simulationTime(0.0f) {
-    std::cout << "Initializing Tail View Aircraft Simulator..." << std::endl;
+TailViewAircraftSimulator::TailViewAircraftSimulator() :
+    mRoot(nullptr),
+    mSceneMgr(nullptr),
+    mCamera(nullptr),
+    mWindow(nullptr),
+    mAircraftEntity(nullptr),
+    mAircraftNode(nullptr),
+    mCameraNode(nullptr),
+    mInputManager(nullptr),
+    mKeyboard(nullptr),
+    mMouse(nullptr),
+    mJoyStick(nullptr),
+    mPitch(0.0),
+    mRoll(0.0),
+    mYaw(0.0),
+    mVelocity(50.0),
+    mAltitude(1000.0),
+    mThrottle(0.5),
+    mStickX(0.0),
+    mStickY(0.0),
+    mRudder(0.0),
+    mExitApp(false)
+{
 }
 
-TailViewAircraftSimulator::~TailViewAircraftSimulator() {
-    std::cout << "Cleaning up Tail View Aircraft Simulator..." << std::endl;
+TailViewAircraftSimulator::~TailViewAircraftSimulator()
+{
+    if (mJoyStick) {
+        mInputManager->destroyInputObject(mJoyStick);
+        mJoyStick = nullptr;
+    }
+    if (mMouse) {
+        mInputManager->destroyInputObject(mMouse);
+        mMouse = nullptr;
+    }
+    if (mKeyboard) {
+        mInputManager->destroyInputObject(mKeyboard);
+        mKeyboard = nullptr;
+    }
+    if (mInputManager) {
+        OIS::InputManager::destroyInputSystem(mInputManager);
+        mInputManager = nullptr;
+    }
+
+    delete mRoot;
 }
 
-bool TailViewAircraftSimulator::initialize() {
-    std::cout << "Initializing simulator components..." << std::endl;
-
-    // Initialize GLFW
-    if (!glfwInit()) {
-        std::cerr << "Failed to initialize GLFW" << std::endl;
-        return false;
-    }
-
-    // Configure GLFW
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-
-#ifdef __APPLE__
-    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
-#endif
-
-    // Create window
-    GLFWwindow* window = glfwCreateWindow(1200, 800, "Aircraft Tail View Simulator", NULL, NULL);
-    if (window == NULL) {
-        std::cerr << "Failed to create GLFW window" << std::endl;
-        glfwTerminate();
-        return false;
-    }
-    glfwMakeContextCurrent(window);
-
-    // Initialize GLEW
-    if (glewInit() != GLEW_OK) {
-        std::cerr << "Failed to initialize GLEW" << std::endl;
-        return false;
-    }
-
-    // Enable depth testing
-    glEnable(GL_DEPTH_TEST);
+void TailViewAircraftSimulator::setup()
+{
+    mRoot = new Ogre::Root("", "", "");
     
-    // Enable joystick support
-    if (glfwJoystickPresent(GLFW_JOYSTICK_1) == GL_FALSE) {
-        std::cout << "Warning: Joystick not detected. Using keyboard controls." << std::endl;
+    // Configure rendering system
+    Ogre::RenderSystem *renderSys = mRoot->getRenderSystemByName("OpenGL 3+");
+    if (!renderSys) {
+        renderSys = mRoot->getAvailableRenderers().begin()->second;
+    }
+    mRoot->setRenderSystem(renderSys);
+    
+    // Initialize root without creating window yet
+    mRoot->initialise(false);
+    
+    // Create window
+    Ogre::NameValuePairList params;
+    params["title"] = "Aircraft Tail View Simulator";
+    params["vsync"] = "false";
+    mWindow = mRoot->createRenderWindow("Aircraft Tail View Simulator", 1200, 800, false, &params);
+    
+    // Set up scene manager
+    mSceneMgr = mRoot->createSceneManager();
+    mSceneMgr->setAmbientLight(Ogre::ColourValue(0.5, 0.5, 0.5));
+    
+    // Set this class as a Window listener
+    Ogre::WindowEventUtilities::addWindowEventListener(mWindow, this);
+    
+    createScene();
+    setupCamera();
+    setupLights();
+    setupInput();
+    
+    // Register as frame listener
+    mRoot->addFrameListener(this);
+}
+
+void TailViewAircraftSimulator::shutdown()
+{
+    if (mRoot) {
+        mRoot->removeFrameListener(this);
+        mRoot->shutdown();
+    }
+}
+
+void TailViewAircraftSimulator::createScene()
+{
+    // Create ground plane
+    Ogre::Plane plane(Ogre::Vector3::UNIT_Y, 0);
+    Ogre::MeshManager::getSingleton().createPlane(
+        "ground",
+        Ogre::ResourceGroupManager::DEFAULT_RESOURCE_GROUP_NAME,
+        plane,
+        20000, 20000, 20, 20,
+        true,
+        1, 500, 500,
+        Ogre::Vector3::UNIT_Z
+    );
+    
+    Ogre::Entity* groundEntity = mSceneMgr->createEntity("GroundEntity", "ground");
+    groundEntity->setMaterialName("BaseWhite");
+    groundEntity->setCastShadows(false);
+    mSceneMgr->getRootSceneNode()->createChildSceneNode()->attachObject(groundEntity);
+    
+    // Create sky
+    mSceneMgr->setSkyDome(true, "Examples/CloudySky", 5, 8);
+    
+    // Create a basic aircraft model using primitives
+    createAircraftModel();
+}
+
+void TailViewAircraftSimulator::createAircraftModel()
+{
+    // For now, we'll create a simple box to represent the aircraft
+    // In a real implementation, we would load a 3D aircraft model
+    Ogre::Entity* fuselage = mSceneMgr->createEntity("fuselage.mesh"); // Placeholder
+    
+    // If the mesh doesn't exist, create a simple representation
+    try {
+        mAircraftEntity = mSceneMgr->createEntity("fuselage.mesh");
+    } catch (...) {
+        // Create a simple aircraft representation using basic geometry
+        mAircraftEntity = mSceneMgr->createEntity("AircraftBody", Ogre::SceneManager::PT_CUBE);
+        mAircraftEntity->setScale(3.0, 0.8, 1.0); // Make it look like a fuselage
+    }
+    
+    mAircraftNode = mSceneMgr->getRootSceneNode()->createChildSceneNode();
+    mAircraftNode->attachObject(mAircraftEntity);
+    mAircraftNode->setPosition(0, mAltitude, 0);
+    
+    // Add wings and tail as separate entities for better visualization
+    try {
+        Ogre::Entity* wingEntity = mSceneMgr->createEntity("wing.mesh");
+        Ogre::SceneNode* wingNode = mAircraftNode->createChildSceneNode("Wings");
+        wingNode->attachObject(wingEntity);
+    } catch (...) {
+        // Create simple wing representation
+        Ogre::Entity* wingEntity = mSceneMgr->createEntity("AircraftWings", Ogre::SceneManager::PT_CUBE);
+        wingEntity->setScale(0.2, 6.0, 1.0);
+        Ogre::SceneNode* wingNode = mAircraftNode->createChildSceneNode("Wings");
+        wingNode->attachObject(wingEntity);
+        wingNode->setPosition(0, 0.2, 0);
+    }
+}
+
+void TailViewAircraftSimulator::setupCamera()
+{
+    mCamera = mSceneMgr->createCamera("PlayerCam");
+    mCamera->setNearClipDistance(5);
+    mCamera->setFarClipDistance(50000);
+    
+    // Set up camera to follow aircraft from tail view
+    mCameraNode = mSceneMgr->getRootSceneNode()->createChildSceneNode("CameraNode");
+    mCameraNode->attachObject(mCamera);
+    
+    // Position camera behind and above the aircraft
+    mCameraNode->setPosition(0, mAltitude + 10, 20);
+    mCameraNode->lookAt(mAircraftNode->_getDerivedPosition(), Ogre::Node::TS_WORLD);
+}
+
+void TailViewAircraftSimulator::setupLights()
+{
+    Ogre::Light* light = mSceneMgr->createLight("MainLight");
+    light->setPosition(20, 80, 50);
+    light->setDiffuseColour(1.0, 1.0, 1.0);
+    light->setSpecularColour(1.0, 1.0, 1.0);
+}
+
+void TailViewAircraftSimulator::setupInput()
+{
+    OIS::ParamList pl;
+    size_t windowHnd = 0;
+    std::ostringstream windowHndStr;
+
+    mWindow->getCustomAttribute("WINDOW", &windowHnd);
+    windowHndStr << windowHnd;
+    pl.insert(std::make_pair(std::string("WINDOW"), windowHndStr.str()));
+    
+    mInputManager = OIS::InputManager::createInputSystem(pl);
+    
+    mKeyboard = static_cast<OIS::Keyboard*>(mInputManager->createInputObject(OIS::OISKeyboard, true));
+    mMouse = static_cast<OIS::Mouse*>(mInputManager->createInputObject(OIS::OISMouse, true));
+    mJoyStick = nullptr;
+    
+    // Look for connected joysticks
+    if (mInputManager->numJoySticks() > 0) {
+        mJoyStick = static_cast<OIS::JoyStick*>(mInputManager->createInputObject(OIS::OISJoyStick, true));
+        
+        // Set this as the joystick listener
+        mJoyStick->setEventCallback(this);
     } else {
-        std::cout << "Logitech Extreme 3D Pro joystick detected." << std::endl;
+        std::cout << "No joystick found!" << std::endl;
     }
+    
+    mKeyboard->setEventCallback(this);
+    mMouse->setEventCallback(this);
+}
 
-    // Initialize components
-    m_aircraft = std::make_unique<AircraftModel>();
-    m_camera = std::make_unique<CameraController>();
-    m_inputHandler = std::make_unique<InputHandler>();
-    m_flightPhysics = std::make_unique<FlightPhysics>();
-
-    if (!m_inputHandler->initializeJoystick()) {
-        std::cout << "Using keyboard controls as fallback." << std::endl;
+bool TailViewAircraftSimulator::frameRenderingQueued(const Ogre::FrameEvent& fe)
+{
+    if (mWindow->isClosed()) {
+        return false;
     }
+    
+    mKeyboard->capture();
+    mMouse->capture();
+    if (mJoyStick) {
+        mJoyStick->capture();
+    }
+    
+    updateJoystickInput();
+    updateFlightParameters(fe);
+    updateAircraft(fe);
+    
+    // Update camera position to maintain tail view
+    Ogre::Vector3 aircraftPos = mAircraftNode->_getDerivedPosition();
+    Ogre::Quaternion aircraftOrientation = mAircraftNode->_getDerivedOrientation();
+    
+    // Calculate camera position behind the aircraft
+    Ogre::Vector3 offset(-20, 10, 0); // Start with offset in aircraft local space
+    Ogre::Vector3 worldOffset = aircraftOrientation * offset;
+    mCameraNode->setPosition(aircraftPos + worldOffset);
+    
+    // Make camera look at aircraft
+    mCameraNode->setFixedYawAxis(true);
+    mCameraNode->lookAt(aircraftPos, Ogre::Node::TS_WORLD);
+    
+    return !mExitApp;
+}
 
-    m_running = true;
-    std::cout << "Initialization complete." << std::endl;
+void TailViewAircraftSimulator::updateJoystickInput()
+{
+    if (!mJoyStick) return;
+    
+    const OIS::JoyStickState &state = mJoyStick->getJoyStickState();
+    
+    // Map joystick axes to aircraft controls
+    // Axis 0: X-axis (typically aileron/roll control)
+    mStickX = static_cast<float>(state.mAxes[0].abs) / 32768.0f - 1.0f;
+    
+    // Axis 1: Y-axis (typically elevator/pitch control) 
+    mStickY = static_cast<float>(state.mAxes[1].abs) / 32768.0f - 1.0f;
+    
+    // Axis 2: Rudder (typically Z-axis or slider)
+    if (state.mAxes.size() > 2) {
+        mRudder = static_cast<float>(state.mAxes[2].abs) / 32768.0f - 1.0f;
+    }
+    
+    // Throttle might be on a slider or another axis
+    if (state.mAxes.size() > 3) {
+        mThrottle = static_cast<float>(state.mAxes[3].abs) / 65536.0f; // 0 to 1 range
+    }
+}
+
+void TailViewAircraftSimulator::updateFlightParameters(const Ogre::FrameEvent& fe)
+{
+    const float dt = fe.timeSinceLastFrame;
+    const float pitchRate = 0.5f;  // rad/s
+    const float rollRate = 1.0f;   // rad/s
+    const float yawRate = 0.3f;    // rad/s
+    
+    // Update angular rates based on stick positions
+    float pitchChange = -mStickY * pitchRate * dt;  // Negative because y-axis is inverted
+    float rollChange = mStickX * rollRate * dt;
+    float yawChange = mRudder * yawRate * dt;
+    
+    // Apply limits to prevent excessive attitude changes
+    mPitch += pitchChange;
+    mRoll += rollChange;
+    mYaw += yawChange;
+    
+    // Apply limits
+    mPitch = std::max(-Ogre::Math::PI/2, std::min(Ogre::Math::PI/2, mPitch));
+    mRoll = std::max(-Ogre::Math::PI/2, std::min(Ogre::Math::PI/2, mRoll));
+    
+    // Update velocity based on throttle and pitch
+    float thrust = (mThrottle - 0.5f) * 20.0f;  // -10 to +10 m/s^2
+    float drag = -0.1f * mVelocity;             // Simple drag model
+    float netForce = thrust + drag;
+    mVelocity += netForce * dt;
+    mVelocity = std::max(10.0f, mVelocity);  // Minimum speed to keep flying
+    
+    // Calculate altitude change based on pitch
+    float altitudeChange = mVelocity * sin(mPitch) * dt;
+    mAltitude += altitudeChange;
+    mAltitude = std::max(10.0f, mAltitude);  // Don't go underground
+}
+
+void TailViewAircraftSimulator::updateAircraft(const Ogre::FrameEvent& fe)
+{
+    // Update aircraft orientation
+    Ogre::Quaternion pitchQuat = Ogre::Quaternion(Ogre::Radian(mPitch), Ogre::Vector3::UNIT_X);
+    Ogre::Quaternion rollQuat = Ogre::Quaternion(Ogre::Radian(mRoll), Ogre::Vector3::UNIT_Y);
+    Ogre::Quaternion yawQuat = Ogre::Quaternion(Ogre::Radian(mYaw), Ogre::Vector3::UNIT_Z);
+    
+    // Combine rotations: apply in the order yaw, pitch, roll
+    Ogre::Quaternion orientation = yawQuat * pitchQuat * rollQuat;
+    mAircraftNode->setOrientation(orientation);
+    
+    // Calculate movement vector based on current orientation and velocity
+    Ogre::Vector3 forward = orientation * Ogre::Vector3::NEGATIVE_UNIT_Z;
+    Ogre::Vector3 movement = forward * mVelocity * fe.timeSinceLastFrame;
+    
+    // Update position
+    Ogre::Vector3 newPos = mAircraftNode->getPosition();
+    newPos += movement;
+    newPos.y = mAltitude; // Keep altitude consistent
+    mAircraftNode->setPosition(newPos);
+}
+
+void TailViewAircraftSimulator::windowResized(Ogre::RenderWindow* rw)
+{
+    unsigned int width, height, depth;
+    int left, top;
+    rw->getMetrics(width, height, depth, left, top);
+    
+    const OIS::MouseState &ms = mMouse->getMouseState();
+    ms.width = width;
+    ms.height = height;
+}
+
+void TailViewAircraftSimulator::windowClosed(Ogre::RenderWindow* rw)
+{
+    if (rw == mWindow) {
+        mExitApp = true;
+    }
+}
+
+bool TailViewAircraftSimulator::keyPressed(const OIS::KeyEvent &arg)
+{
+    if (arg.key == OIS::KC_ESCAPE) {
+        mExitApp = true;
+    }
     return true;
 }
 
-void TailViewAircraftSimulator::run() {
-    std::cout << "Starting simulation loop..." << std::endl;
-    
-    GLFWwindow* window = glfwGetCurrentContext();
-    float lastFrameTime = static_cast<float>(glfwGetTime());
-    
-    while (!glfwWindowShouldClose(window) && m_running) {
-        float currentFrameTime = static_cast<float>(glfwGetTime());
-        float deltaTime = currentFrameTime - lastFrameTime;
-        lastFrameTime = currentFrameTime;
+bool TailViewAircraftSimulator::keyReleased(const OIS::KeyEvent &arg)
+{
+    return true;
+}
 
-        // Handle events
-        glfwPollEvents();
+bool TailViewAircraftSimulator::mouseMoved(const OIS::MouseEvent &arg)
+{
+    return true;
+}
 
-        // Update simulation
-        update(deltaTime);
+bool TailViewAircraftSimulator::mousePressed(const OIS::MouseEvent &arg, OIS::MouseButtonID id)
+{
+    return true;
+}
 
-        // Render scene
-        render();
+bool TailViewAircraftSimulator::mouseReleased(const OIS::MouseEvent &arg, OIS::MouseButtonID id)
+{
+    return true;
+}
 
-        // Swap buffers
-        glfwSwapBuffers(window);
+bool TailViewAircraftSimulator::buttonPressed(const OIS::JoyStickEvent &arg, int button)
+{
+    if (button == 0) {  // Typically trigger button
+        mExitApp = true;
     }
-    
-    std::cout << "Simulation ended." << std::endl;
+    return true;
 }
 
-void TailViewAircraftSimulator::update(float deltaTime) {
-    // Poll input
-    m_inputHandler->pollInputs();
-
-    // Apply flight physics
-    m_flightPhysics->update(*m_aircraft, 
-                            m_inputHandler->getThrottle(),
-                            m_inputHandler->getElevator(),
-                            m_inputHandler->getAileron(),
-                            m_inputHandler->getRudder(),
-                            deltaTime);
-
-    // Update camera to follow aircraft from tail view
-    m_camera->setupTailView(*m_aircraft);
-
-    m_simulationTime += deltaTime;
+bool TailViewAircraftSimulator::buttonReleased(const OIS::JoyStickEvent &arg, int button)
+{
+    return true;
 }
 
-void TailViewAircraftSimulator::render() {
-    // Clear the screen
-    glClearColor(0.5f, 0.7f, 1.0f, 1.0f);  // Sky blue background
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-    // Render ground/skybox
-    renderEnvironment();
-
-    // Render aircraft
-    renderAircraft();
-
-    // Render HUD
-    renderHUD();
+bool TailViewAircraftSimulator::axisMoved(const OIS::JoyStickEvent &arg, int axis)
+{
+    return true;
 }
 
-void TailViewAircraftSimulator::cleanup() {
-    m_running = false;
-    
-    m_aircraft.reset();
-    m_camera.reset();
-    m_inputHandler.reset();
-    m_flightPhysics.reset();
-    
-    glfwTerminate();
-}
-
-void TailViewAircraftSimulator::renderEnvironment() {
-    // Simple ground rendering
-    glBegin(GL_QUADS);
-    glColor3f(0.2f, 0.6f, 0.2f);  // Green ground
-    
-    // Ground plane
-    glVertex3f(-50.0f, -1.0f, -50.0f);
-    glVertex3f(50.0f, -1.0f, -50.0f);
-    glVertex3f(50.0f, -1.0f, 50.0f);
-    glVertex3f(-50.0f, -1.0f, 50.0f);
-    
-    glEnd();
-}
-
-void TailViewAircraftSimulator::renderAircraft() {
-    // Save current matrix
-    glPushMatrix();
-    
-    // Position and orient the aircraft
-    glTranslatef(m_aircraft->getX(), m_aircraft->getY(), m_aircraft->getZ());
-    
-    // Apply rotations in proper order: Z (roll), Y (yaw), X (pitch)
-    glRotatef(m_aircraft->getRoll() * RAD_TO_DEG, 0.0f, 0.0f, 1.0f);
-    glRotatef(m_aircraft->getYaw() * RAD_TO_DEG, 0.0f, 1.0f, 0.0f);
-    glRotatef(m_aircraft->getPitch() * RAD_TO_DEG, 1.0f, 0.0f, 0.0f);
-    
-    // Draw simple aircraft shape (like a basic airplane)
-    drawAircraftShape();
-    
-    // Restore matrix
-    glPopMatrix();
-}
-
-void TailViewAircraftSimulator::drawAircraftShape() {
-    // Draw fuselage
-    glColor3f(0.8f, 0.8f, 0.8f);  // Light gray
-    glBegin(GL_LINES);
-    
-    // Fuselage - from nose to tail
-    glVertex3f(2.0f, 0.0f, 0.0f);   // Nose
-    glVertex3f(-2.0f, 0.0f, 0.0f);  // Tail
-    
-    // Wings
-    glVertex3f(-0.5f, 0.0f, -1.5f);  // Left wing tip
-    glVertex3f(-0.5f, 0.0f, 1.5f);   // Right wing tip
-    
-    // Horizontal stabilizer
-    glVertex3f(-1.8f, 0.1f, -0.5f);  // Left hstab tip
-    glVertex3f(-1.8f, 0.1f, 0.5f);   // Right hstab tip
-    
-    // Vertical stabilizer
-    glVertex3f(-1.8f, 0.1f, 0.0f);   // Base
-    glVertex3f(-1.8f, 0.8f, 0.0f);   // Top
-    
-    glEnd();
-}
-
-void TailViewAircraftSimulator::renderHUD() {
-    // Simple HUD showing flight parameters
-    glColor3f(1.0f, 1.0f, 1.0f);
-    
-    // This would normally render text, but for now we'll just note what should be displayed
-    // - Altitude
-    // - Airspeed
-    // - Attitude indicators
-    // - Control inputs
-}
-
-// Implementation of AircraftModel class
-AircraftModel::AircraftModel() 
-    : m_positionX(0.0f), m_positionY(0.0f), m_positionZ(0.0f),
-      m_pitch(0.0f), m_yaw(0.0f), m_roll(0.0f),
-      m_velocityX(0.0f), m_velocityY(0.0f), m_velocityZ(0.0f),
-      m_angularVelocityX(0.0f), m_angularVelocityY(0.0f), m_angularVelocityZ(0.0f) {
-}
-
-AircraftModel::~AircraftModel() {
-}
-
-void AircraftModel::setPosition(float x, float y, float z) {
-    m_positionX = x;
-    m_positionY = y;
-    m_positionZ = z;
-}
-
-void AircraftModel::setOrientation(float pitch, float yaw, float roll) {
-    m_pitch = pitch;
-    m_yaw = yaw;
-    m_roll = roll;
-}
-
-void AircraftModel::applyControlInputs(float throttle, float elevator, float aileron, float rudder) {
-    // These values will be used by the flight physics system
-    // Actual implementation depends on the physics calculations
-}
-
-// Implementation of CameraController class
-CameraController::CameraController() 
-    : m_distance(10.0f), m_heightOffset(3.0f), m_angleOffset(0.0f) {
-}
-
-CameraController::~CameraController() {
-}
-
-void CameraController::setupTailView(const AircraftModel& aircraft) {
-    float aircraftX = aircraft.getX();
-    float aircraftY = aircraft.getY();
-    float aircraftZ = aircraft.getZ();
-    float aircraftYaw = aircraft.getYaw();
-    float aircraftPitch = aircraft.getPitch();
-    
-    // Calculate camera position behind and slightly above the aircraft
-    float camX = aircraftX - cos(aircraftYaw) * m_distance;
-    float camZ = aircraftZ - sin(aircraftYaw) * m_distance;
-    float camY = aircraftY + m_heightOffset;
-    
-    // Calculate look-at point (the aircraft position)
-    float targetX = aircraftX;
-    float targetY = aircraftY;
-    float targetZ = aircraftZ;
-    
-    // Calculate up vector (affected by aircraft attitude)
-    float upX = -sin(aircraftRoll);
-    float upY = cos(aircraftPitch);
-    float upZ = sin(aircraftPitch) * sin(aircraftRoll);
-    
-    // Normalize up vector
-    float upLength = sqrt(upX * upX + upY * upY + upZ * upZ);
-    if (upLength > 0.0f) {
-        upX /= upLength;
-        upY /= upLength;
-        upZ /= upLength;
-    } else {
-        upY = 1.0f;  // Default up vector if attitude is neutral
-    }
-    
-    // Set the camera view (in a real implementation, this would set the view matrix)
-    gluLookAt(camX, camY, camZ, targetX, targetY, targetZ, upX, upY, upZ);
-}
-
-void CameraController::updateViewMatrix() {
-    // This would update the OpenGL view matrix in a real implementation
-}
-
-// Implementation of InputHandler class
-InputHandler::InputHandler() 
-    : m_throttle(0.0f), m_elevator(0.0f), m_aileron(0.0f), m_rudder(0.0f),
-      m_joystickId(GLFW_JOYSTICK_1), m_joystickConnected(false) {
-}
-
-InputHandler::~InputHandler() {
-}
-
-bool InputHandler::initializeJoystick() {
-    if (glfwJoystickPresent(m_joystickId)) {
-        const char* name = glfwGetJoystickName(m_joystickId);
-        std::cout << "Connected joystick: " << name << std::endl;
-        
-        int axesCount;
-        const float* axes = glfwGetJoystickAxes(m_joystickId, &axesCount);
-        
-        if (axesCount >= 4) {
-            m_joystickConnected = true;
-            std::cout << "Logitech Extreme 3D Pro joystick initialized successfully." << std::endl;
-            return true;
-        }
-    }
-    
-    std::cout << "Failed to initialize joystick." << std::endl;
-    return false;
-}
-
-void InputHandler::pollInputs() {
-    if (m_joystickConnected && glfwJoystickPresent(m_joystickId)) {
-        int axesCount;
-        const float* axes = glfwGetJoystickAxes(m_joystickId, &axesCount);
-        
-        if (axesCount >= 4) {
-            // Assuming typical joystick mapping for Logitech Extreme 3D Pro:
-            // Axis 0: Aileron (roll control) - left/right stick movement
-            // Axis 1: Elevator (pitch control) - forward/back stick movement
-            // Axis 2: Throttle - slider on the left
-            // Axis 3: Rudder (yaw control) - rotation of stick
-            
-            // Note: Some axes might need inversion depending on the specific joystick
-            m_aileron = (axesCount > 0) ? -axes[0] : 0.0f;      // Invert aileron for proper control
-            m_elevator = (axesCount > 1) ? -axes[1] : 0.0f;     // Invert elevator for proper control
-            m_throttle = (axesCount > 2) ? axes[2] : 0.0f;      // Throttle axis
-            m_rudder = (axesCount > 3) ? axes[3] : 0.0f;        // Rudder axis
-            
-            // Additional axes may include hat switches, etc.
-        }
-    } else {
-        // Fallback to keyboard controls if joystick is not available
-        GLFWwindow* window = glfwGetCurrentContext();
-        if (window) {
-            // Map keyboard keys to aircraft controls
-            m_elevator = 0.0f;
-            if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) m_elevator = -0.5f;
-            if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS) m_elevator = 0.5f;
-            
-            m_aileron = 0.0f;
-            if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS) m_aileron = -0.5f;
-            if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS) m_aileron = 0.5f;
-            
-            m_throttle = 0.0f;
-            if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) m_throttle = 1.0f;
-            if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) m_throttle = -1.0f;
-            
-            m_rudder = 0.0f;
-            if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) m_rudder = -0.5f;
-            if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) m_rudder = 0.5f;
-        }
-    }
-}
-
-// Implementation of FlightPhysics class
-FlightPhysics::FlightPhysics() 
-    : m_mass(1000.0f),                    // 1000 kg aircraft
-      m_momentOfInertiaX(2000.0f),       // Roll moment of inertia
-      m_momentOfInertiaY(5000.0f),       // Pitch moment of inertia
-      m_momentOfInertiaZ(4000.0f) {      // Yaw moment of inertia
-}
-
-FlightPhysics::~FlightPhysics() {
-}
-
-void FlightPhysics::update(AircraftModel& aircraft, float throttle, float elevator, 
-                          float aileron, float rudder, float deltaTime) {
-    // Calculate forces and moments based on control inputs
-    calculateForcesAndMoments(throttle, elevator, aileron, rudder);
-    
-    // Integrate motion equations
-    integrateMotion(aircraft, deltaTime);
-}
-
-void FlightPhysics::calculateForcesAndMoments(float throttle, float elevator, 
-                                             float aileron, float rudder) {
-    // Simplified force and moment calculations
-    // In a real implementation, these would be more complex aerodynamic models
-    
-    // Thrust force along the longitudinal axis of the aircraft
-    float thrust = throttle * 10000.0f;  // Max thrust of 10000N
-    
-    // Control surface effectiveness
-    float pitchMoment = elevator * 5000.0f;   // Elevator effectiveness
-    float rollMoment = aileron * 3000.0f;     // Aileron effectiveness
-    float yawMoment = rudder * 2000.0f;       // Rudder effectiveness
-    
-    // These values would affect the aircraft's motion in the integration step
-}
-
-void FlightPhysics::integrateMotion(AircraftModel& aircraft, float deltaTime) {
-    // Simple Euler integration for demonstration purposes
-    // In a real flight simulator, more sophisticated integration methods would be used
-    
-    // Update angular velocities based on moments (simplified)
-    float pitchRate = 0.0f;  // Would be calculated from pitch moment and moment of inertia
-    float rollRate = 0.0f;   // Would be calculated from roll moment and moment of inertia
-    float yawRate = 0.0f;    // Would be calculated from yaw moment and moment of inertia
-    
-    // Update orientations
-    float newPitch = aircraft.getPitch() + pitchRate * deltaTime;
-    float newYaw = aircraft.getYaw() + yawRate * deltaTime;
-    float newRoll = aircraft.getRoll() + rollRate * deltaTime;
-    
-    // Keep angles within reasonable bounds
-    newPitch = fmaxf(-PI/2, fminf(PI/2, newPitch));  // Limit pitch to ±90 degrees
-    
-    aircraft.setOrientation(newPitch, newYaw, newRoll);
-    
-    // Update position based on velocity and orientation
-    // This is a very simplified approach
-    float speed = 20.0f;  // Constant speed for demo purposes
-    
-    float velX = speed * cos(newPitch) * cos(newYaw);
-    float velY = speed * sin(newPitch);
-    float velZ = speed * cos(newPitch) * sin(newYaw);
-    
-    float newX = aircraft.getX() + velX * deltaTime;
-    float newY = aircraft.getY() + velY * deltaTime;
-    float newZ = aircraft.getZ() + velZ * deltaTime;
-    
-    aircraft.setPosition(newX, newY, newZ);
+bool TailViewAircraftSimulator::povMoved(const OIS::JoyStickEvent &arg, int pov)
+{
+    return true;
 }

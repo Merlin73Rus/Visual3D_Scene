@@ -1,44 +1,40 @@
 cmake_minimum_required(VERSION 3.10)
+
 project(AviationHorizonDiagnostic)
 
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Find required packages
-find_package(PkgConfig REQUIRED)
-if(PkgConfig_FOUND)
-    pkg_check_modules(SDL2 REQUIRED sdl2)
-    pkg_check_modules(SDL2IMAGE REQUIRED SDL2_image>=2.0.0)
-endif()
+# Find OGRE
+find_package(OGRE REQUIRED)
 
-# Include directories
-include_directories(include)
+# Find OIS
+find_package(Threads REQUIRED)
+find_package(OGRE COMPONENTS Overlay)
 
-# Source files
-set(SOURCES
+# Include OGRE directories
+include_directories(${OGRE_INCLUDE_DIRS})
+include_directories(/usr/include/OGRE)
+include_directories(/usr/include/OIS)
+
+# Add executable
+add_executable(${PROJECT_NAME}
     src/main.cpp
     src/HorizonDiagnosticApp.cpp
 )
 
-# Create executable
-add_executable(${PROJECT_NAME} ${SOURCES})
-
 # Link libraries
 target_link_libraries(${PROJECT_NAME} 
-    ${SDL2_LIBRARIES} 
-    ${SDL2IMAGE_LIBRARIES}
-    -lSDL2 -lSDL2_image
+    ${OGRE_LIBRARIES} 
+    OIS
+    ${CMAKE_THREAD_LIBS_INIT}
+    ${CMAKE_DL_LIBS}
 )
 
-# Set include directories for target
-target_include_directories(${PROJECT_NAME} PRIVATE 
-    ${SDL2_INCLUDE_DIRS}
-    ${SDL2IMAGE_INCLUDE_DIRS}
-)
+# Set C++ flags
+target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Wextra -std=c++17)
 
-# Compiler-specific options
-if(MSVC)
-    target_compile_options(${PROJECT_NAME} PRIVATE /W4)
-else()
-    target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Wextra -pedantic)
-endif()
+# Install rules
+install(TARGETS ${PROJECT_NAME}
+    RUNTIME DESTINATION bin
+)

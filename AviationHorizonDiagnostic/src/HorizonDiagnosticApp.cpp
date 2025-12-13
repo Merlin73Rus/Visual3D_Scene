@@ -1,319 +1,482 @@
-#include "../include/HorizonDiagnosticApp.h"
+#include "HorizonDiagnosticApp.h"
 #include <iostream>
-#include <fstream>
 #include <sstream>
-#include <algorithm>
+#include <fstream>
+#include <cstdlib>
 #include <ctime>
 
-HorizonDiagnosticApp::HorizonDiagnosticApp() 
-    : window(nullptr), renderer(nullptr), currentSlideTexture(nullptr),
-      running(false), currentSlideIndex(0), currentModule(1), slideDisplayed(false),
-      joystickXAxis(0), joystickYAxis(0), joystickButtons(0) {
+HorizonDiagnosticApp::HorizonDiagnosticApp() :
+    mRoot(nullptr),
+    mSceneMgr(nullptr),
+    mCamera(nullptr),
+    mWindow(nullptr),
+    mHorizonDisplay(nullptr),
+    mHorizonNode(nullptr),
+    mInputManager(nullptr),
+    mKeyboard(nullptr),
+    mMouse(nullptr),
+    mJoyStick(nullptr),
+    mCurrentModule(0),
+    mCurrentImage(0),
+    mTotalImages(50),
+    mImageDisplayed(false),
+    mUserAnswer(0),
+    mCorrectAnswers(0),
+    mResultsFile("diagnostic_results.txt"),
+    mExitApp(false),
+    mTestRunning(false)
+{
+    // Initialize random seed
+    std::srand(static_cast<unsigned int>(std::time(0)));
 }
 
-HorizonDiagnosticApp::~HorizonDiagnosticApp() {
-    cleanup();
+HorizonDiagnosticApp::~HorizonDiagnosticApp()
+{
+    if (mJoyStick) {
+        mInputManager->destroyInputObject(mJoyStick);
+        mJoyStick = nullptr;
+    }
+    if (mMouse) {
+        mInputManager->destroyInputObject(mMouse);
+        mMouse = nullptr;
+    }
+    if (mKeyboard) {
+        mInputManager->destroyInputObject(mKeyboard);
+        mKeyboard = nullptr;
+    }
+    if (mInputManager) {
+        OIS::InputManager::destroyInputSystem(mInputManager);
+        mInputManager = nullptr;
+    }
+
+    delete mRoot;
 }
 
-bool HorizonDiagnosticApp::initialize() {
-    // Initialize SDL
-    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_JOYSTICK) < 0) {
-        std::cerr << "SDL could not initialize! SDL_Error: " << SDL_GetError() << std::endl;
-        return false;
+void HorizonDiagnosticApp::setup()
+{
+    mRoot = new Ogre::Root("", "", "");
+    
+    // Configure rendering system
+    Ogre::RenderSystem *renderSys = mRoot->getRenderSystemByName("OpenGL 3+");
+    if (!renderSys) {
+        renderSys = mRoot->getAvailableRenderers().begin()->second;
     }
-
-    // Initialize SDL_image
-    int imgFlags = IMG_INIT_PNG | IMG_INIT_JPG;
-    if (!(IMG_Init(imgFlags) & imgFlags)) {
-        std::cerr << "SDL_image could not initialize! SDL_image Error: " << IMG_GetError() << std::endl;
-        return false;
-    }
-
+    mRoot->setRenderSystem(renderSys);
+    
+    // Initialize root without creating window yet
+    mRoot->initialise(false);
+    
     // Create window
-    window = SDL_CreateWindow("Aviation Horizon Diagnostic Program",
-                             SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
-                             800, 600, SDL_WINDOW_SHOWN);
-    if (!window) {
-        std::cerr << "Window could not be created! SDL_Error: " << SDL_GetError() << std::endl;
-        return false;
-    }
+    Ogre::NameValuePairList params;
+    params["title"] = "Aviation Horizon Diagnostic";
+    params["vsync"] = "false";
+    mWindow = mRoot->createRenderWindow("Aviation Horizon Diagnostic", 1200, 800, false, &params);
+    
+    // Set up scene manager
+    mSceneMgr = mRoot->createSceneManager();
+    mSceneMgr->setAmbientLight(Ogre::ColourValue(0.2, 0.2, 0.2));
+    
+    // Set this class as a Window listener
+    Ogre::WindowEventUtilities::addWindowEventListener(mWindow, this);
+    
+    createScene();
+    setupCamera();
+    setupLights();
+    setupInput();
+    createArtificialHorizon();
+    
+    // Generate horizon images for both modules
+    generateHorizonImages();
+    
+    // Start with module 1
+    startModule(1);
+    
+    // Register as frame listener
+    mRoot->addFrameListener(this);
+}
 
-    // Create renderer
-    renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
-    if (!renderer) {
-        std::cerr << "Renderer could not be created! SDL_Error: " << SDL_GetError() << std::endl;
-        return false;
+void HorizonDiagnosticApp::shutdown()
+{
+    if (mRoot) {
+        mRoot->removeFrameListener(this);
+        mRoot->shutdown();
     }
+}
 
-    // Initialize joystick
-    if (SDL_NumJoysticks() < 1) {
-        std::cerr << "Warning: No joysticks connected!" << std::endl;
-    } else {
-        SDL_Joystick* joystick = SDL_JoystickOpen(0);
-        if (joystick == nullptr) {
-            std::cerr << "Warning: Unable to open joystick! SDL Error: " << SDL_GetError() << std::endl;
+void HorizonDiagnosticApp::createScene()
+{
+    // Create a dark background to highlight the artificial horizon
+    mSceneMgr->setSkyDome(true, "Examples/SpaceSkyPlane", 5, 8);
+}
+
+void HorizonDiagnosticApp::setupCamera()
+{
+    mCamera = mSceneMgr->createCamera("PlayerCam");
+    mCamera->setNearClipDistance(0.1);
+    mCamera->setFarClipDistance(100);
+    mCamera->setAspectRatio(1200.0f / 800.0f);
+    
+    // Position camera to look at the horizon display
+    mCamera->setPosition(0, 0, 5);
+    mCamera->lookAt(0, 0, 0);
+}
+
+void HorizonDiagnosticApp::setupLights()
+{
+    // Add a subtle light to illuminate the scene
+    Ogre::Light* light = mSceneMgr->createLight("MainLight");
+    light->setPosition(0, 5, 5);
+    light->setDiffuseColour(0.8, 0.8, 0.8);
+    light->setSpecularColour(1.0, 1.0, 1.0);
+}
+
+void HorizonDiagnosticApp::createArtificialHorizon()
+{
+    // Create a manual object to represent the artificial horizon display
+    mHorizonDisplay = mSceneMgr->createManualObject("ArtificialHorizonDisplay");
+    
+    // Create a simple circular display
+    float radius = 2.0f;
+    int segments = 64;
+    
+    mHorizonDisplay->begin("BaseWhiteNoLighting", Ogre::RenderOperation::OT_TRIANGLE_STRIP);
+    
+    // Draw a filled circle for the horizon display
+    for (int i = 0; i <= segments; ++i) {
+        float angle = 2 * Ogre::Math::PI * i / segments;
+        float x = radius * cos(angle);
+        float y = radius * sin(angle);
+        
+        // Outer edge
+        mHorizonDisplay->position(x, y, 0);
+        
+        // Inner edge (for a border effect)
+        if (i == 0) {
+            mHorizonDisplay->position(0, 0, 0);  // Center
         }
     }
+    
+    mHorizonDisplay->end();
+    
+    // Create a scene node for the horizon display
+    mHorizonNode = mSceneMgr->getRootSceneNode()->createChildSceneNode();
+    mHorizonNode->attachObject(mHorizonDisplay);
+    mHorizonNode->setPosition(0, 0, 0);
+}
 
-    // Generate test slides for both modules
-    generateTestSlides(1); // First module
-    generateTestSlides(2); // Second module
+void HorizonDiagnosticApp::generateHorizonImages()
+{
+    mHorizonImages.clear();
+    
+    // Generate 50 horizon images for each module
+    for (int module = 1; module <= 2; ++module) {
+        for (int i = 0; i < mTotalImages; ++i) {
+            HorizonImage img;
+            
+            // Random roll direction (-1 for left, 1 for right)
+            img.rollDirection = (std::rand() % 2 == 0) ? -1 : 1;
+            
+            if (module == 1) {
+                // Module 1: no rotation (0 degrees)
+                img.rotationAngle = 0;
+            } else {
+                // Module 2: random rotation (0, 90, 180, or 270 degrees)
+                int rotationIndex = std::rand() % 4;
+                img.rotationAngle = rotationIndex * 90;
+            }
+            
+            img.answered = false;
+            img.correctAnswer = false;
+            
+            mHorizonImages.push_back(img);
+        }
+    }
+}
 
-    running = true;
-    slideStartTime = std::chrono::steady_clock::now();
-    slideDisplayed = true;
+void HorizonDiagnosticApp::startModule(int moduleNum)
+{
+    mCurrentModule = moduleNum;
+    mCurrentImage = 0;
+    mCorrectAnswers = 0;
+    mTestRunning = true;
+    
+    // Shuffle the images for this module
+    int startIndex = (moduleNum - 1) * mTotalImages;
+    int endIndex = startIndex + mTotalImages;
+    
+    std::vector<HorizonImage> moduleImages;
+    for (int i = startIndex; i < endIndex; ++i) {
+        moduleImages.push_back(mHorizonImages[i]);
+    }
+    
+    // Shuffle the module images
+    std::random_shuffle(moduleImages.begin(), moduleImages.end());
+    
+    // Replace the module's images in the main array
+    for (int i = 0; i < mTotalImages; ++i) {
+        mHorizonImages[startIndex + i] = moduleImages[i];
+    }
+    
+    mTimer.reset();
+    displayCurrentHorizon();
+    
+    std::cout << "Starting Module " << moduleNum << std::endl;
+}
 
+void HorizonDiagnosticApp::displayCurrentHorizon()
+{
+    if (mCurrentImage >= mTotalImages) {
+        // Module completed
+        std::cout << "Module " << mCurrentModule << " completed. Correct answers: " 
+                  << mCorrectAnswers << "/" << mTotalImages << std::endl;
+        
+        if (mCurrentModule == 1) {
+            // Start module 2
+            startModule(2);
+        } else {
+            // Both modules completed
+            saveResults();
+            mTestRunning = false;
+            std::cout << "Diagnostic test completed. Results saved to " << mResultsFile << std::endl;
+        }
+        return;
+    }
+    
+    // Update the artificial horizon display based on the current image
+    int currentIndex = (mCurrentModule - 1) * mTotalImages + mCurrentImage;
+    const HorizonImage& img = mHorizonImages[currentIndex];
+    
+    // Apply rotation based on the image's rotation angle
+    Ogre::Quaternion rotation = Ogre::Quaternion(Ogre::Radian(Ogre::Degree(img.rotationAngle)), Ogre::Vector3::UNIT_Z);
+    mHorizonNode->setOrientation(rotation);
+    
+    // Reset user answer for this image
+    mUserAnswer = 0;
+    mImageDisplayed = true;
+    mTimer.reset();
+}
+
+void HorizonDiagnosticApp::nextHorizon()
+{
+    if (mCurrentImage >= mTotalImages) return;
+    
+    // Check if user answered correctly (if they answered at all)
+    int currentIndex = (mCurrentModule - 1) * mTotalImages + mCurrentImage;
+    HorizonImage& img = mHorizonImages[currentIndex];
+    
+    if (mUserAnswer != 0) {  // User provided an answer
+        img.answered = true;
+        if (mUserAnswer == img.rollDirection) {
+            img.correctAnswer = true;
+            mCorrectAnswers++;
+            std::cout << "Correct answer for image " << mCurrentImage + 1 << std::endl;
+        } else {
+            std::cout << "Incorrect answer for image " << mCurrentImage + 1 
+                      << ". Expected: " << (img.rollDirection == -1 ? "Left" : "Right") << std::endl;
+        }
+    } else {
+        std::cout << "No answer for image " << mCurrentImage + 1 << std::endl;
+    }
+    
+    mCurrentImage++;
+    displayCurrentHorizon();
+}
+
+void HorizonDiagnosticApp::setupInput()
+{
+    OIS::ParamList pl;
+    size_t windowHnd = 0;
+    std::ostringstream windowHndStr;
+
+    mWindow->getCustomAttribute("WINDOW", &windowHnd);
+    windowHndStr << windowHnd;
+    pl.insert(std::make_pair(std::string("WINDOW"), windowHndStr.str()));
+    
+    mInputManager = OIS::InputManager::createInputSystem(pl);
+    
+    mKeyboard = static_cast<OIS::Keyboard*>(mInputManager->createInputObject(OIS::OISKeyboard, true));
+    mMouse = static_cast<OIS::Mouse*>(mInputManager->createInputObject(OIS::OISMouse, true));
+    mJoyStick = nullptr;
+    
+    // Look for connected joysticks
+    if (mInputManager->numJoySticks() > 0) {
+        mJoyStick = static_cast<OIS::JoyStick*>(mInputManager->createInputObject(OIS::OISJoyStick, true));
+        
+        // Set this as the joystick listener
+        mJoyStick->setEventCallback(this);
+    } else {
+        std::cout << "No joystick found!" << std::endl;
+    }
+    
+    mKeyboard->setEventCallback(this);
+    mMouse->setEventCallback(this);
+}
+
+bool HorizonDiagnosticApp::frameRenderingQueued(const Ogre::FrameEvent& fe)
+{
+    if (mWindow->isClosed()) {
+        return false;
+    }
+    
+    mKeyboard->capture();
+    mMouse->capture();
+    if (mJoyStick) {
+        mJoyStick->capture();
+    }
+    
+    // Check if 3 seconds have passed for the current image
+    if (mTestRunning && mImageDisplayed && mTimer.getMilliseconds() >= 3000) {
+        nextHorizon();
+    }
+    
+    return !mExitApp;
+}
+
+void HorizonDiagnosticApp::saveResults()
+{
+    std::ofstream file(mResultsFile);
+    if (!file.is_open()) {
+        std::cerr << "Could not open results file: " << mResultsFile << std::endl;
+        return;
+    }
+    
+    file << "Aviation Horizon Diagnostic Results\n";
+    file << "==================================\n\n";
+    
+    file << "Module 1 Results (Standard Images):\n";
+    file << "Total Images: " << mTotalImages << "\n";
+    file << "Correct Answers: " << mHorizonImages[0].rollDirection;  // Placeholder - we need to count properly
+    
+    int module1Correct = 0;
+    int module2Correct = 0;
+    
+    for (int i = 0; i < mTotalImages; ++i) {
+        if (mHorizonImages[i].answered && mHorizonImages[i].correctAnswer) {
+            module1Correct++;
+        }
+    }
+    
+    for (int i = mTotalImages; i < 2 * mTotalImages; ++i) {
+        if (mHorizonImages[i].answered && mHorizonImages[i].correctAnswer) {
+            module2Correct++;
+        }
+    }
+    
+    file << "Module 1 Score: " << module1Correct << "/" << mTotalImages << " (" 
+         << (module1Correct * 100.0 / mTotalImages) << "%)\n";
+    file << "Module 2 Score: " << module2Correct << "/" << mTotalImages << " (" 
+         << (module2Correct * 100.0 / mTotalImages) << "%)\n";
+    file << "Overall Score: " << (module1Correct + module2Correct) << "/" << (2 * mTotalImages) << " (" 
+         << ((module1Correct + module2Correct) * 100.0 / (2 * mTotalImages)) << "%)\n\n";
+    
+    file << "Detailed Results:\n";
+    file << "Module 1:\n";
+    for (int i = 0; i < mTotalImages; ++i) {
+        file << "  Image " << (i+1) << ": Roll=" 
+             << (mHorizonImages[i].rollDirection == -1 ? "Left" : "Right")
+             << ", Rotation=" << mHorizonImages[i].rotationAngle << "°, "
+             << (mHorizonImages[i].answered ? 
+                 (mHorizonImages[i].correctAnswer ? "Correct" : "Incorrect") : "No Answer")
+             << "\n";
+    }
+    
+    file << "\nModule 2:\n";
+    for (int i = mTotalImages; i < 2 * mTotalImages; ++i) {
+        int imageNum = i - mTotalImages + 1;
+        file << "  Image " << imageNum << ": Roll=" 
+             << (mHorizonImages[i].rollDirection == -1 ? "Left" : "Right")
+             << ", Rotation=" << mHorizonImages[i].rotationAngle << "°, "
+             << (mHorizonImages[i].answered ? 
+                 (mHorizonImages[i].correctAnswer ? "Correct" : "Incorrect") : "No Answer")
+             << "\n";
+    }
+    
+    file.close();
+}
+
+void HorizonDiagnosticApp::windowResized(Ogre::RenderWindow* rw)
+{
+    unsigned int width, height, depth;
+    int left, top;
+    rw->getMetrics(width, height, depth, left, top);
+    
+    const OIS::MouseState &ms = mMouse->getMouseState();
+    ms.width = width;
+    ms.height = height;
+}
+
+void HorizonDiagnosticApp::windowClosed(Ogre::RenderWindow* rw)
+{
+    if (rw == mWindow) {
+        mExitApp = true;
+    }
+}
+
+bool HorizonDiagnosticApp::keyPressed(const OIS::KeyEvent &arg)
+{
+    if (arg.key == OIS::KC_ESCAPE) {
+        mExitApp = true;
+    }
+    // For testing purposes, we could use keys to indicate left/right roll
+    else if (arg.key == OIS::KC_LEFT || arg.key == OIS::KC_A) {
+        mUserAnswer = -1;  // Left roll
+    }
+    else if (arg.key == OIS::KC_RIGHT || arg.key == OIS::KC_D) {
+        mUserAnswer = 1;   // Right roll
+    }
+    
     return true;
 }
 
-void HorizonDiagnosticApp::run() {
-    while (running) {
-        handleEvents();
-        update();
-        render();
-        
-        SDL_Delay(16); // ~60 FPS
-    }
+bool HorizonDiagnosticApp::keyReleased(const OIS::KeyEvent &arg)
+{
+    return true;
 }
 
-void HorizonDiagnosticApp::handleEvents() {
-    SDL_Event event;
-    while (SDL_PollEvent(&event)) {
-        switch (event.type) {
-            case SDL_QUIT:
-                running = false;
-                break;
-                
-            case SDL_JOYAXISMOTION:
-                if (event.jaxis.axis == 0) { // X-axis (roll control)
-                    joystickXAxis = event.jaxis.value;
-                } else if (event.jaxis.axis == 1) { // Y-axis (pitch control)
-                    joystickYAxis = event.jaxis.value;
-                }
-                break;
-                
-            case SDL_JOYBUTTONDOWN:
-                joystickButtons |= (1 << event.jbutton.button);
-                // Handle button presses for user responses
-                // Button 0 (trigger) - left bank
-                // Button 1 - right bank
-                if (event.jbutton.button == 0 && slideDisplayed) { // Trigger - Left bank
-                    userResponses.push_back(true); // User thinks it's left bank
-                    bool correct = (slides[currentSlideIndex].bankLeft == true);
-                    correctness.push_back(correct);
-                    nextSlide();
-                } else if (event.jbutton.button == 1 && slideDisplayed) { // Button 1 - Right bank
-                    userResponses.push_back(false); // User thinks it's right bank
-                    bool correct = (slides[currentSlideIndex].bankLeft == false);
-                    correctness.push_back(correct);
-                    nextSlide();
-                }
-                break;
-                
-            case SDL_JOYBUTTONUP:
-                joystickButtons &= ~(1 << event.jbutton.button);
-                break;
-                
-            case SDL_KEYDOWN:
-                switch (event.key.keysym.sym) {
-                    case SDLK_ESCAPE:
-                        running = false;
-                        break;
-                    case SDLK_LEFT:
-                        if (slideDisplayed) {
-                            userResponses.push_back(true); // Left bank
-                            bool correct = (slides[currentSlideIndex].bankLeft == true);
-                            correctness.push_back(correct);
-                            nextSlide();
-                        }
-                        break;
-                    case SDLK_RIGHT:
-                        if (slideDisplayed) {
-                            userResponses.push_back(false); // Right bank
-                            bool correct = (slides[currentSlideIndex].bankLeft == false);
-                            correctness.push_back(correct);
-                            nextSlide();
-                        }
-                        break;
-                }
-                break;
-        }
-    }
+bool HorizonDiagnosticApp::mouseMoved(const OIS::MouseEvent &arg)
+{
+    return true;
 }
 
-void HorizonDiagnosticApp::update() {
-    auto currentTime = std::chrono::steady_clock::now();
-    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - slideStartTime).count();
-    
-    // Automatically advance to next slide after 3 seconds if no response
-    if (elapsed >= SLIDE_DISPLAY_TIME_MS && slideDisplayed) {
-        // Record no response or default response
-        userResponses.push_back(false); // Default to right bank if no response
-        correctness.push_back(false); // Mark as incorrect if no response
-        nextSlide();
-    }
+bool HorizonDiagnosticApp::mousePressed(const OIS::MouseEvent &arg, OIS::MouseButtonID id)
+{
+    return true;
 }
 
-void HorizonDiagnosticApp::render() {
-    // Clear screen
-    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
-    SDL_RenderClear(renderer);
-
-    // Display current slide if available
-    if (currentSlideIndex < slides.size() && currentSlideTexture != nullptr) {
-        SDL_Rect renderQuad = { 200, 100, 400, 400 }; // Centered on screen
-        
-        // Render rotated texture if needed
-        SDL_Point center = {200, 200}; // Center of the image
-        SDL_RenderCopyEx(renderer, currentSlideTexture, NULL, &renderQuad, 
-                         slides[currentSlideIndex].rotationAngle, &center, SDL_FLIP_NONE);
-    }
-
-    // Display instructions
-    SDL_Color textColor = {255, 255, 255, 255}; // White color
-    // Note: We would normally render text here using SDL_ttf, but for simplicity we're skipping text rendering
-    
-    // Show current module and slide info
-    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-    SDL_Rect border = { 195, 95, 410, 410 };
-    SDL_RenderDrawRect(renderer, &border);
-    
-    SDL_RenderPresent(renderer);
+bool HorizonDiagnosticApp::mouseReleased(const OIS::MouseEvent &arg, OIS::MouseButtonID id)
+{
+    return true;
 }
 
-void HorizonDiagnosticApp::generateTestSlides(int module) {
-    std::random_device rd;
-    std::mt19937 gen(rd());
-    std::uniform_int_distribution<> bankDist(0, 1); // 0 = right bank, 1 = left bank
-    std::uniform_int_distribution<> rotationDist(0, 3); // 0, 1, 2, 3 for 0, 90, 180, 270 degrees
-    
-    int startIndex = slides.size();
-    int slideCount = 50; // 50 slides per module
-    
-    for (int i = 0; i < slideCount; ++i) {
-        SlideData slide;
-        
-        // Generate random bank direction
-        slide.bankLeft = (bankDist(gen) == 1);
-        
-        if (module == 1) {
-            // First module: no rotation
-            slide.rotationAngle = 0;
-            slide.rotationMultiple = 0;
-        } else {
-            // Second module: random rotation (0, 90, 180, 270 degrees)
-            int rotMult = rotationDist(gen);
-            slide.rotationMultiple = rotMult;
-            slide.rotationAngle = rotMult * 90;
-        }
-        
-        // For now, we'll use placeholder images - in real implementation these would point to actual horizon images
-        slide.imagePath = "assets/horizon_slide_" + std::to_string(i % 10) + ".png"; // Placeholder
-        
-        slides.push_back(slide);
+bool HorizonDiagnosticApp::buttonPressed(const OIS::JoyStickEvent &arg, int button)
+{
+    // Use joystick buttons to indicate roll direction
+    // Button 0: Left roll
+    // Button 1: Right roll
+    if (button == 0) {
+        mUserAnswer = -1;  // Left roll
     }
+    else if (button == 1) {
+        mUserAnswer = 1;   // Right roll
+    }
+    else if (button == 2) {  // Exit button
+        mExitApp = true;
+    }
+    
+    return true;
 }
 
-void HorizonDiagnosticApp::nextSlide() {
-    currentSlideIndex++;
-    
-    // Check if we've completed the current module
-    int moduleStartIndex = (currentModule == 1) ? 0 : 50;
-    if (currentSlideIndex >= moduleStartIndex + 50) {
-        if (currentModule == 1) {
-            // Switch to second module
-            switchToNextModule();
-        } else {
-            // Completed both modules - save results and exit
-            saveResults();
-            running = false;
-        }
-    } else {
-        // Load next slide
-        slideStartTime = std::chrono::steady_clock::now();
-        slideDisplayed = true;
-    }
+bool HorizonDiagnosticApp::buttonReleased(const OIS::JoyStickEvent &arg, int button)
+{
+    return true;
 }
 
-void HorizonDiagnosticApp::switchToNextModule() {
-    currentModule = 2;
-    currentSlideIndex = 50; // Start from index 50 for second module
-    
-    // Generate slides for second module if not already done
-    if (slides.size() < 100) {
-        generateTestSlides(2);
-    }
-    
-    slideStartTime = std::chrono::steady_clock::now();
-    slideDisplayed = true;
+bool HorizonDiagnosticApp::axisMoved(const OIS::JoyStickEvent &arg, int axis)
+{
+    return true;
 }
 
-void HorizonDiagnosticApp::saveResults() {
-    std::ofstream outFile("diagnostic_results_" + std::to_string(std::time(0)) + ".txt");
-    
-    if (outFile.is_open()) {
-        outFile << "Результаты диагностики способности к пространственному анализу авиагоризонта\n";
-        outFile << "=======================================================================\n";
-        outFile << "Дата и время: " << std::time(nullptr) << "\n\n";
-        
-        // Results for Module 1
-        int correctModule1 = 0;
-        for (int i = 0; i < 50 && i < correctness.size(); ++i) {
-            if (correctness[i]) correctModule1++;
-        }
-        
-        outFile << "Модуль 1 (базовый): 50 слайдов без вращения\n";
-        outFile << "Правильных ответов: " << correctModule1 << "/50 (" 
-                << (correctModule1 * 100 / 50) << "%)\n\n";
-        
-        // Results for Module 2
-        int correctModule2 = 0;
-        for (int i = 50; i < 100 && i < correctness.size(); ++i) {
-            if (correctness[i]) correctModule2++;
-        }
-        
-        outFile << "Модуль 2 (усложненный): 50 слайдов с вращением\n";
-        outFile << "Правильных ответов: " << correctModule2 << "/50 (" 
-                << (correctModule2 * 100 / 50) << "%)\n\n";
-        
-        outFile << "Общие результаты:\n";
-        outFile << "Всего правильных ответов: " << (correctModule1 + correctModule2) << "/100 (" 
-                << ((correctModule1 + correctModule2) * 100 / 100) << "%)\n\n";
-        
-        outFile << "Детализированные результаты:\n";
-        for (size_t i = 0; i < userResponses.size(); ++i) {
-            outFile << "Слайд " << (i+1) << ": ";
-            outFile << "Истинное направление: " << (slides[i].bankLeft ? "левый" : "правый") 
-                    << ", Ответ пользователя: " << (userResponses[i] ? "левый" : "правый")
-                    << ", Правильно: " << (correctness[i] ? "да" : "нет");
-            
-            if (i >= 50) {
-                outFile << ", Угол поворота: " << slides[i].rotationAngle << "°";
-            }
-            outFile << "\n";
-        }
-        
-        outFile.close();
-        std::cout << "Результаты сохранены в файл diagnostic_results_" << std::time(0) << ".txt\n";
-    }
-}
-
-void HorizonDiagnosticApp::cleanup() {
-    if (currentSlideTexture) {
-        SDL_DestroyTexture(currentSlideTexture);
-        currentSlideTexture = nullptr;
-    }
-    
-    if (renderer) {
-        SDL_DestroyRenderer(renderer);
-        renderer = nullptr;
-    }
-    
-    if (window) {
-        SDL_DestroyWindow(window);
-        window = nullptr;
-    }
-    
-    IMG_Quit();
-    SDL_Quit();
+bool HorizonDiagnosticApp::povMoved(const OIS::JoyStickEvent &arg, int pov)
+{
+    return true;
 }

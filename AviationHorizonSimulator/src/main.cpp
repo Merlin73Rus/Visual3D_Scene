@@ -1,10 +1,10 @@
-#include "TailViewAircraftSimulator.h"
+#include "AviationHorizonSimulator.h"
 #include <iostream>
 
 int main(int argc, char **argv)
 {
     try {
-        TailViewAircraftSimulator app;
+        AviationHorizonSimulator app;
         app.setup();
         app.mRoot->startRendering();
         app.shutdown();

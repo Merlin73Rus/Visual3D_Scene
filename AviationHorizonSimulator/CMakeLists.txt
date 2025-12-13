@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.10)
 
-project(AircraftTailViewSimulator)
+project(AviationHorizonSimulator)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -20,7 +20,7 @@ include_directories(/usr/include/OIS)
 # Add executable
 add_executable(${PROJECT_NAME}
     src/main.cpp
-    src/TailViewAircraftSimulator.cpp
+    src/AviationHorizonSimulator.cpp
 )
 
 # Link libraries

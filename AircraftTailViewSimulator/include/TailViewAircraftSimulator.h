@@ -1,170 +1,87 @@
-#pragma once
+#ifndef TAILVIEWAIRCRAFTSIMULATOR_H
+#define TAILVIEWAIRCRAFTSIMULATOR_H
 
-#include <iostream>
-#include <memory>
+#include <OGRE/Ogre.h>
+#include <OGRE/OgreApplicationContext.h>
+#include <OGRE/OgreInput.h>
+#include <OISEvents.h>
+#include <OISInputManager.h>
+#include <OISKeyboard.h>
+#include <OISJoyStick.h>
 #include <vector>
 
-// Forward declarations
-class AircraftModel;
-class CameraController;
-class InputHandler;
-class FlightPhysics;
-
-/**
- * @brief Main class for the Tail View Aircraft Simulator
- * 
- * This class manages the entire simulation system including:
- * - 3D visualization of aircraft from tail view perspective
- * - Input handling from Logitech Extreme 3D Pro joystick
- * - Flight physics simulation
- * - Camera control from fixed tail view position
- */
-class TailViewAircraftSimulator {
+class TailViewAircraftSimulator : public Ogre::FrameListener,
+                                  public Ogre::WindowEventListener,
+                                  public OIS::KeyListener,
+                                  public OIS::MouseListener,
+                                  public OIS::JoyStickListener
+{
 public:
-    /**
-     * @brief Constructor initializes the simulator components
-     */
     TailViewAircraftSimulator();
+    virtual ~TailViewAircraftSimulator();
 
-    /**
-     * @brief Destructor cleans up resources
-     */
-    ~TailViewAircraftSimulator();
+    void setup();
+    void shutdown();
 
-    /**
-     * @brief Initialize the simulator system
-     * @return true if initialization successful, false otherwise
-     */
-    bool initialize();
+    // Ogre::FrameListener
+    virtual bool frameRenderingQueued(const Ogre::FrameEvent& fe);
 
-    /**
-     * @brief Run the main simulation loop
-     */
-    void run();
+    // Ogre::WindowEventListener
+    virtual void windowResized(Ogre::RenderWindow* rw);
+    virtual void windowClosed(Ogre::RenderWindow* rw);
 
-    /**
-     * @brief Update simulation state
-     * @param deltaTime Time elapsed since last update
-     */
-    void update(float deltaTime);
+    // OIS::KeyListener
+    virtual bool keyPressed(const OIS::KeyEvent &arg);
+    virtual bool keyReleased(const OIS::KeyEvent &arg);
 
-    /**
-     * @brief Render the current scene
-     */
-    void render();
+    // OIS::MouseListener
+    virtual bool mouseMoved(const OIS::MouseEvent &arg);
+    virtual bool mousePressed(const OIS::MouseEvent &arg, OIS::MouseButtonID id);
+    virtual bool mouseReleased(const OIS::MouseEvent &arg, OIS::MouseButtonID id);
 
-    /**
-     * @brief Cleanup resources before exit
-     */
-    void cleanup();
+    // OIS::JoyStickListener
+    virtual bool buttonPressed(const OIS::JoyStickEvent &arg, int button);
+    virtual bool buttonReleased(const OIS::JoyStickEvent &arg, int button);
+    virtual bool axisMoved(const OIS::JoyStickEvent &arg, int axis);
+    virtual bool povMoved(const OIS::JoyStickEvent &arg, int pov);
 
 private:
-    std::unique_ptr<AircraftModel> m_aircraft;
-    std::unique_ptr<CameraController> m_camera;
-    std::unique_ptr<InputHandler> m_inputHandler;
-    std::unique_ptr<FlightPhysics> m_flightPhysics;
+    void createScene();
+    void setupCamera();
+    void setupLights();
+    void setupInput();
+    void updateAircraft(const Ogre::FrameEvent& fe);
+    void updateFlightParameters(const Ogre::FrameEvent& fe);
+    void updateJoystickInput();
+    void createAircraftModel();
+    
+    Ogre::Root* mRoot;
+    Ogre::SceneManager* mSceneMgr;
+    Ogre::Camera* mCamera;
+    Ogre::RenderWindow* mWindow;
+    Ogre::Entity* mAircraftEntity;
+    Ogre::SceneNode* mAircraftNode;
+    Ogre::SceneNode* mCameraNode;
+    
+    OIS::InputManager* mInputManager;
+    OIS::Keyboard* mKeyboard;
+    OIS::Mouse* mMouse;
+    OIS::JoyStick* mJoyStick;
 
-    bool m_running;
-    float m_simulationTime;
+    // Flight parameters
+    Ogre::Real mPitch;      // in radians
+    Ogre::Real mRoll;       // in radians
+    Ogre::Real mYaw;        // in radians
+    Ogre::Real mVelocity;   // in m/s
+    Ogre::Real mAltitude;   // in meters
+    
+    // Control inputs from joystick
+    float mThrottle;
+    float mStickX;  // Aileron control (-1 to 1)
+    float mStickY;  // Elevator control (-1 to 1)
+    float mRudder;  // Rudder control (-1 to 1)
+    
+    bool mExitApp;
 };
 
-/**
- * @brief Class representing the aircraft model in 3D space
- */
-class AircraftModel {
-public:
-    AircraftModel();
-    ~AircraftModel();
-
-    void setPosition(float x, float y, float z);
-    void setOrientation(float pitch, float yaw, float roll);
-    
-    void applyControlInputs(float throttle, float elevator, float aileron, float rudder);
-    
-    // Getters for position and orientation
-    float getX() const { return m_positionX; }
-    float getY() const { return m_positionY; }
-    float getZ() const { return m_positionZ; }
-    
-    float getPitch() const { return m_pitch; }
-    float getYaw() const { return m_yaw; }
-    float getRoll() const { return m_roll; }
-
-private:
-    float m_positionX, m_positionY, m_positionZ;
-    float m_pitch, m_yaw, m_roll;
-    float m_velocityX, m_velocityY, m_velocityZ;
-    float m_angularVelocityX, m_angularVelocityY, m_angularVelocityZ;
-};
-
-/**
- * @brief Class controlling the camera from tail view perspective
- */
-class CameraController {
-public:
-    CameraController();
-    ~CameraController();
-
-    void setupTailView(const AircraftModel& aircraft);
-    void updateViewMatrix();
-    
-    // Setters for camera parameters
-    void setDistance(float distance) { m_distance = distance; }
-    void setHeightOffset(float offset) { m_heightOffset = offset; }
-    void setAngleOffset(float angle) { m_angleOffset = angle; }
-
-private:
-    float m_distance;      // Distance behind the aircraft
-    float m_heightOffset;  // Height above the aircraft
-    float m_angleOffset;   // Angular offset from direct tail view
-};
-
-/**
- * @brief Class handling input from Logitech Extreme 3D Pro joystick
- */
-class InputHandler {
-public:
-    InputHandler();
-    ~InputHandler();
-
-    bool initializeJoystick();
-    void pollInputs();
-    
-    // Get normalized control inputs (-1.0 to 1.0)
-    float getThrottle() const { return m_throttle; }
-    float getElevator() const { return m_elevator; }  // Pitch control
-    float getAileron() const { return m_aileron; }    // Roll control
-    float getRudder() const { return m_rudder; }      // Yaw control
-
-private:
-    float m_throttle;
-    float m_elevator;
-    float m_aileron;
-    float m_rudder;
-    
-    int m_joystickId;
-    bool m_joystickConnected;
-};
-
-/**
- * @brief Class implementing basic flight physics
- */
-class FlightPhysics {
-public:
-    FlightPhysics();
-    ~FlightPhysics();
-
-    void update(AircraftModel& aircraft, float throttle, float elevator, 
-                float aileron, float rudder, float deltaTime);
-
-private:
-    void calculateForcesAndMoments(float throttle, float elevator, 
-                                   float aileron, float rudder);
-    void integrateMotion(AircraftModel& aircraft, float deltaTime);
-
-    // Physical properties
-    float m_mass;
-    float m_momentOfInertiaX;
-    float m_momentOfInertiaY;
-    float m_momentOfInertiaZ;
-};
+#endif // TAILVIEWAIRCRAFTSIMULATOR_H
