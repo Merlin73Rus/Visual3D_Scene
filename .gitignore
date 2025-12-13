@@ -1,18 +1,19 @@
 ```
 # Build artifacts
-build/
 CMakeFiles/
-CMakeCache.txt
-cmake_install.cmake
-Makefile
+cmake-build-*/
+build/
+dist/
 *.o
+*.obj
 *.a
+*.lib
 *.so
+*.dll
 *.exe
-*.out
 
 # Dependencies
-node_modules/
+vendor/
 
 # Logs and temp files
 *.log
@@ -22,37 +23,7 @@ node_modules/
 .vscode/
 .idea/
 
-# Environment
-.env
-.env.local
-*.env.*
-
-# Coverage
-coverage/
-htmlcov/
-.coverage
-
-# Compression files
-*.zip
-*.gz
-*.tar
-*.tgz
-*.bz2
-*.xz
-*.7z
-*.rar
-*.zst
-*.lz4
-*.lzh
-*.cab
-*.arj
-*.rpm
-*.deb
-*.Z
-*.lz
-*.lzo
-*.tar.gz
-*.tar.bz2
-*.tar.xz
-*.tar.zst
+# OS generated files
+.DS_Store
+Thumbs.db
 ```
