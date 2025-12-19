@@ -1,9 +1,10 @@
-// The following ifdef block is the standard way of creating macros which make exporting 
-// from a DLL simpler. All files within this DLL are compiled with the AVIATIONSPATIALTRAINING_EXPORTS
-// symbol defined on the command line. This symbol should not be defined on any project
-// that uses this DLL. This way any other project whose source files include this file see 
-// AVIATIONSPATIALTRAINING_API functions as being imported from a DLL, whereas this DLL sees symbols
-// defined with this macro as being exported.
+// Следующий блок ifdef — стандартный способ определения макроса, 
+// упрощающего экспорт функций из DLL. Все файлы этой DLL компилируются
+// с определенным символом в командной строке AVIATIONSPATIALTRAINING_EXPORTS.
+// Этот символ не должен быть определён в проектах, использующих данную DLL. 
+// Благодаря этому в других проектах, включающих этот заголовочный файл,
+// функции с макросом AVIATIONSPATIALTRAINING_API воспринимаются как импортируемые из DLL,
+// тогда как в самой DLL они считаются экспортируемыми.
 #ifdef AVIATIONSPATIALTRAINING_EXPORTS
 #define AVIATIONSPATIALTRAINING_API __declspec(dllexport)
 #else
@@ -13,12 +14,12 @@
 #include <string>
 #include <vector>
 
-// This class is exported from the AviationSpatialTraining.dll
+// Этот класс экспортируется из AviationSpatialTraining.dll
 
 class AVIATIONSPATIALTRAINING_API CAviationSpatialTraining {
 public:
 	CAviationSpatialTraining(void);
-	// TODO: add your methods here.
+	// TODO: добавьте здесь свои методы.
 	int GetInt(void);
 	std::string GetProgramName(void);
 	void SetHandle(long handle);
@@ -31,7 +32,7 @@ public:
 	void KeyPressed(int stepX, int stepY, int stepZ);
 	void StopRendering();
 	
-	// Aviation-specific methods
+	// Методы, специфичные для авиационного тренажера
 	int GetCurrentStage(void);
 	void SetCurrentStage(int stage);
 	void GetAircraftPosition(double &x, double &y, double &z);
@@ -47,7 +48,7 @@ public:
 private:
 	bool bRendering;
 	bool bCreated;
-	int nCurrentStage; // Training stage (1-5)
+	int nCurrentStage; // Этап обучения (от 1 до 5)
 	
 };
 
