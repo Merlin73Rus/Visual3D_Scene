@@ -1,4 +1,4 @@
-// AviationSpatialTraining.cpp : Defines the exported functions for the DLL application.
+// AviationSpatialTraining.cpp : Определяет экспортируемые функции для DLL-приложения.
 //
 
 #include "stdafx.h"
@@ -7,22 +7,22 @@
 
 OgreFlightRender * m_Render;
 
-// This is an example of an exported variable
+// Пример экспортируемой переменной.
 AVIATIONSPATIALTRAINING_API int nAviationSpatialTraining=0;
 
-// This is an example of an exported function.
+// Пример экспортируемой функции.
 AVIATIONSPATIALTRAINING_API int fnAviationSpatialTraining(void)
 {
 	return 42;
 }
 
-// This is the constructor of a class that has been exported.
-// see AviationSpatialTraining.h for the class definition
+// Конструктор экспортируемого класса.
+// Определение класса см. в AviationSpatialTraining.h
 CAviationSpatialTraining::CAviationSpatialTraining()
 {
 	bRendering = false;
 	bCreated = false;
-	nCurrentStage = 1; // Start with stage 1: Aircraft familiarization
+	nCurrentStage = 1; // Начинаем с этапа 1: знакомство с воздушным судном
 	return;
 }
 
