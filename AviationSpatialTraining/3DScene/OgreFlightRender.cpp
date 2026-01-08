@@ -15,15 +15,15 @@ OgreFlightRender::OgreFlightRender() :
     mKeyboard(0),
     mGUIRenderer(0),
     mSheet(0),
-    mPositionX(0.0), mPositionY(1000.0), mPositionZ(0.0),  // Start at 1000m altitude
-    mPitch(0.0), mRoll(0.0), mYaw(0.0),                    // Level flight
+    mPositionX(0.0), mPositionY(1000.0), mPositionZ(0.0),  // Начальная высота - 1000 м
+    mPitch(0.0), mRoll(0.0), mYaw(0.0),                    // Горизонтальный полет
     mVelocityX(0.0), mVelocityY(0.0), mVelocityZ(0.0),
     mAltitude(1000.0), mAirspeed(150.0), mHeading(0.0), mVerticalSpeed(0.0),
-    mPitchInput(0.0), mRollInput(0.0), mYawInput(0.0), mThrottle(0.5),  // Half throttle
-    mCurrentStage(1),                                       // Stage 1: Familiarization
-    mWeatherCondition(0),                                   // Clear weather
-    mTimeOfDay(12),                                         // Noon
-    mShowInstruments(true),                                 // Show instruments initially
+    mPitchInput(0.0), mRollInput(0.0), mYawInput(0.0), mThrottle(0.5),  // Тяга - 50%
+    mCurrentStage(1),                                       // Этап 1: Знакомство с ВС
+    mWeatherCondition(0),                                   // Ясная погода
+    mTimeOfDay(12),                                         // Полдень
+    mShowInstruments(true),                                 // Инструменты отображаются по умолчанию
     m_bShutDown(false),
     m_bRender(false),
     m_bPause(false),
@@ -68,7 +68,7 @@ void OgreFlightRender::Init(long hWnd)
 {
     mRoot = new Ogre::Root();
     
-    // Configure OGRE
+    // Настройка OGRE
     setupResources();
     bool carryOn = mRoot->restoreConfig();
     if (!carryOn)
@@ -82,26 +82,26 @@ void OgreFlightRender::Init(long hWnd)
     
     mSceneMgr = mRoot->createSceneManager(Ogre::ST_GENERIC);
     
-    // Create camera
+    // Создание камеры
     createCamera();
     
-    // Create viewport
+    // Создание области отображения
     createViewports();
     
-    // Set default scene manager
+    // Установка базового уровня освещения сцены
     mSceneMgr->setAmbientLight(Ogre::ColourValue(0.5, 0.5, 0.5));
     
-    // Create light
+    // Создание источника света
     mLight = mSceneMgr->createLight("MainLight");
     mLight->setPosition(20, 80, 50);
     
-    // Initialize input system
+    // Инициализация системы ввода
     createInputSystem(mWindow);
     
-    // Create the scene
+    // Построение сцены
     createScene();
     
-    // Initialize GUI
+    // Инициализация графического интерфейса
     mGUIRenderer = &CEGUI::OgreRenderer::bootstrapSystem();
     CEGUI::DefaultResourceProvider* rp = static_cast<CEGUI::DefaultResourceProvider*>
         (CEGUI::System::getSingleton().getResourceProvider());
@@ -117,7 +117,7 @@ void OgreFlightRender::Init(long hWnd)
     mSheet = CEGUI::WindowManager::getSingleton().loadLayoutFromFile("training_screen.layout");
     CEGUI::System::getSingleton().setGUISheet(mSheet);
     
-    // Enable flight instruments based on training stage
+    // Формирование панели приборов в зависимости от этапа обучения
     createFlightInstruments();
 }
 
@@ -148,7 +148,7 @@ void OgreFlightRender::Resize(int width, int height)
         mWindow->resize(width, height);
         mWindow->windowMovedOrResized();
         
-        // Update viewport aspect ratio
+        // Обновление соотношения сторон области отображения
         if(mViewport)
         {
             mViewport->setDimensions(0, 0, 1, 1);
@@ -169,17 +169,17 @@ bool OgreFlightRender::frameStarted(const Ogre::FrameEvent& evt)
     if (mWindow->isClosed())
         return false;
 
-    // Capture/update input devices
+    // Захват и обновление данных устройств ввода
     mKeyboard->capture();
     mMouse->capture();
 
-    // Update aircraft physics
+    // Обновление физики воздушного судна
     updateAircraft(evt.timeSinceLastFrame);
     
-    // Update flight instruments display
+    // Обновление показаний приборов
     updateFlightInstruments();
     
-    // Update environment based on settings
+    // Обновление окружения в соответствии с настройками
     updateEnvironment();
     
     return true;
@@ -192,16 +192,16 @@ bool OgreFlightRender::frameEnded(const Ogre::FrameEvent& evt)
 
 void OgreFlightRender::createFrameListener()
 {
-    // Already handled in StartRendering
+    // Уже обрабатывается в StartRendering
 }
 
 void OgreFlightRender::setupResources(void)
 {
-    // Load resource paths from config file
+    // Загрузка путей к ресурсам из конфигурационного файла
     Ogre::ConfigFile cf;
     cf.load("resources.cfg");
 
-    // Go through all sections & settings in the file
+    // Проход по всем секциям и параметрам файла
     Ogre::ConfigFile::SectionIterator seci = cf.getSectionIterator();
 
     Ogre::String secName, typeName, archName;
@@ -224,8 +224,8 @@ void OgreFlightRender::setupResources(void)
 void OgreFlightRender::createCamera(void)
 {
     mCamera = mSceneMgr->createCamera("PlayerCam");
-    mCamera->setPosition(Ogre::Vector3(0, 1000, 0));  // Start at 1000m altitude
-    mCamera->lookAt(Ogre::Vector3(0, 1000, -100));    // Look forward
+    mCamera->setPosition(Ogre::Vector3(0, 1000, 0));  // Начальная позиция на высоте 1000 м
+    mCamera->lookAt(Ogre::Vector3(0, 1000, -100));    // Взгляд вперед
     mCamera->setNearClipDistance(5);
 }
 
@@ -267,13 +267,13 @@ void OgreFlightRender::createInputSystem(Ogre::RenderWindow* win)
 
 void OgreFlightRender::createScene(void)
 {
-    // Create sky
+    // Создание неба
     mSceneMgr->setSkyBox(true, "Examples/SpaceSkyBox");
     
-    // Create ground plane
+    // Создание поверхности земли
     Ogre::Plane plane;
-    plane.d = 0; // Ground level at Y=0
-    plane.normal = Ogre::Vector3::UNIT_Y; // Normal pointing up
+    plane.d = 0; // Уровень земли по Y = 0
+    plane.normal = Ogre::Vector3::UNIT_Y; // Нормаль направлена вверх
     
     Ogre::MeshManager::getSingleton().createPlane("ground", 
         Ogre::ResourceGroupManager::DEFAULT_RESOURCE_GROUP_NAME, 
@@ -283,32 +283,32 @@ void OgreFlightRender::createScene(void)
     groundEntity->setMaterialName("Examples/Rockwall");
     mSceneMgr->getRootSceneNode()->attachObject(groundEntity);
     
-    // Create aircraft model (placeholder - would use real aircraft model in practice)
+    // Загрузка модели ВС
     mAircraftEntity = mSceneMgr->createEntity("Aircraft", "ogrehead.mesh");  // Placeholder
     mAircraftNode = mSceneMgr->getRootSceneNode()->createChildSceneNode("AircraftNode");
     mAircraftNode->attachObject(mAircraftEntity);
     mAircraftNode->setScale(0.5, 0.5, 0.5);  // Scale down the placeholder model
     
-    // Position aircraft at starting position
+    // Установка начального положения ВС
     mAircraftNode->setPosition(mPositionX, mPositionY, mPositionZ);
     
-    // Adjust camera based on training stage
+    // Настройка камеры в зависимости от этапа обучения
     updateCameraForStage();
 }
 
 void OgreFlightRender::updateAircraft(float deltaTime)
 {
-    // Calculate forces and moments based on control inputs
-    double pitchRate = mPitchInput * 0.5;  // Simplified model
+    // Расчет угловых скоростей на основе управляющих воздействий
+    double pitchRate = mPitchInput * 0.5;  // Упрощенная модель
     double rollRate = mRollInput * 0.8;
     double yawRate = mYawInput * 0.3;
     
-    // Update attitude
+    // Обновление углов тангажа, крена и рыскания
     mPitch += pitchRate * deltaTime;
     mRoll += rollRate * deltaTime;
     mYaw += yawRate * deltaTime;
     
-    // Normalize angles
+    // Нормализация углов в диапазон [-π, π]
     if (mPitch > Ogre::Math::PI) mPitch -= 2 * Ogre::Math::PI;
     if (mPitch < -Ogre::Math::PI) mPitch += 2 * Ogre::Math::PI;
     if (mRoll > Ogre::Math::PI) mRoll -= 2 * Ogre::Math::PI;
@@ -316,28 +316,28 @@ void OgreFlightRender::updateAircraft(float deltaTime)
     if (mYaw > Ogre::Math::PI) mYaw -= 2 * Ogre::Math::PI;
     if (mYaw < -Ogre::Math::PI) mYaw += 2 * Ogre::Math::PI;
     
-    // Calculate velocity vector in world coordinates
-    double speed = mAirspeed / 3.6; // Convert km/h to m/s
+    // Расчет вектора скорости в мировых координатах
+    double speed = mAirspeed / 3.6; // Перевод км/ч в м/с
     double velX = speed * cos(mPitch) * sin(mYaw);
     double velZ = speed * cos(mPitch) * cos(mYaw);
     double velY = speed * sin(mPitch);
     
-    // Update position
+    // Обновление положения
     mPositionX += velX * deltaTime;
     mPositionY += velY * deltaTime;
     mPositionZ += velZ * deltaTime;
     
-    // Update altitude
+    // Обновление высоты
     mAltitude = mPositionY;
     
-    // Simple altitude-dependent airspeed adjustment
+    // Простейшая защита от столкновения с землей
     if (mAltitude < 100) {  // Prevent crashing into ground
         mPositionY = 100;
         mAltitude = 100;
-        mPitch = abs(mPitch) > 0.1 ? mPitch * 0.9 : 0;  // Correct pitch if near ground
+        mPitch = abs(mPitch) > 0.1 ? mPitch * 0.9 : 0;  // Уменьшение угла тангажа у земли
     }
     
-    // Update aircraft node position and orientation
+    // Обновление положения и ориентации ВС в сцене
     if (mAircraftNode) {
         mAircraftNode->setPosition(mPositionX, mPositionY, mPositionZ);
         mAircraftNode->resetOrientation();
@@ -346,7 +346,7 @@ void OgreFlightRender::updateAircraft(float deltaTime)
         mAircraftNode->rotate(Ogre::Vector3::UNIT_Z, Ogre::Radian(mRoll));
     }
     
-    // Update camera to follow aircraft appropriately based on stage
+    // Обновление положения камеры в зависимости от этапа обучения
     updateCameraForStage();
 }
 
@@ -357,23 +357,23 @@ void OgreFlightRender::updateCameraForStage()
     Ogre::Vector3 aircraftPos = mAircraftNode->getPosition();
     
     switch(mCurrentStage) {
-        case 1:  // Familiarization: View from behind aircraft
+        case 1:  // Знакомство: вид сзади и сверху
             mCamera->setPosition(aircraftPos + Ogre::Vector3(-20, 5, 20));
             mCamera->lookAt(aircraftPos);
             break;
-        case 2:  // Basic maneuvers: Closer view from behind
+        case 2:  // Базовые маневры: более близкий вид сзади
             mCamera->setPosition(aircraftPos + Ogre::Vector3(-10, 2, 10));
             mCamera->lookAt(aircraftPos);
             break;
-        case 3:  // Visual flight rules: From cockpit perspective
+        case 3:  // Правила визуальных полетов: вид из кабины
             mCamera->setPosition(aircraftPos);
             mCamera->setOrientation(mAircraftNode->getOrientation());
             break;
-        case 4:  // Transition to instruments: Mixed view
+        case 4:  // Переход к приборному полету: комбинированный вид
             mCamera->setPosition(aircraftPos + Ogre::Vector3(0, 2, 10));
             mCamera->lookAt(aircraftPos);
             break;
-        case 5:  // Instrument flight: Cockpit view with instruments
+        case 5:  // Приборный полет: Вид из кабины с приборами
             mCamera->setPosition(aircraftPos);
             mCamera->setOrientation(mAircraftNode->getOrientation());
             break;
@@ -382,16 +382,16 @@ void OgreFlightRender::updateCameraForStage()
 
 void OgreFlightRender::updateFlightInstruments()
 {
-    // Update instrument readings based on current flight state
-    // These would be displayed on the GUI
-    mAltitude = mPositionY;  // Altitude above ground level
-    mHeading = mYaw * 180.0 / Ogre::Math::PI;  // Convert to degrees
-    if (mHeading < 0) mHeading += 360;  // Normalize to 0-360 range
+    // Обновление показаний приборов на основе текущего состояния ВС
+    // Эти данные отображаются в графическом интерфейсе
+    mAltitude = mPositionY;  // Высота над уровнем земли
+    mHeading = mYaw * 180.0 / Ogre::Math::PI;  // Перевод в градусы
+    if (mHeading < 0) mHeading += 360;  // Нормализация в диапазон 0–360
     
-    // Vertical speed in meters per second
+    // Вертикальная скорость (м/с)
     mVerticalSpeed = mVelocityY;
     
-    // Update CEGUI elements with current values
+    // Обновление соответствующих элементов интерфейса
     if (mShowInstruments) {
         std::stringstream ss;
         ss << "Altitude: " << (int)mAltitude << " m";
@@ -403,23 +403,21 @@ void OgreFlightRender::updateFlightInstruments()
 
 void OgreFlightRender::createFlightInstruments()
 {
-    // Create flight instruments based on the current training stage
-    // In a real implementation, this would create CEGUI elements for each instrument
-    // depending on the training requirements of each stage
+    // Формирование панели приборов в зависимости от этапа обучения
     switch(mCurrentStage) {
-        case 1:  // Familiarization: Basic position visualization
-            mShowInstruments = false;  // Focus on visual scene
+        case 1:  // Знакомство: упор на визуальное восприятие
+            mShowInstruments = false;  // Полет без приборов
             break;
-        case 2:  // Basic maneuvers: Simple instruments
+        case 2:  // Выполнение базовых маневров с отображением приборной панели
             mShowInstruments = true;
             break;
-        case 3:  // Visual flight rules: Standard VFR instruments
+        case 3:  // Визуальные полеты с отображением приборной панели
             mShowInstruments = true;
             break;
-        case 4:  // Transition: Mixed display
+        case 4:  // Переход к совмещенному отображению приборов
             mShowInstruments = true;
             break;
-        case 5:  // Instrument flight: Full instrument panel
+        case 5:  // Приборный полет
             mShowInstruments = true;
             break;
     }
@@ -427,32 +425,32 @@ void OgreFlightRender::createFlightInstruments()
 
 void OgreFlightRender::updateEnvironment()
 {
-    // Update environment based on weather and time of day settings
+    // Обновление окружающей среды в зависимости от погоды и времени суток
     updateWeather();
 }
 
 void OgreFlightRender::updateWeather()
 {
-    // Apply weather effects based on mWeatherCondition
+    // Применение погодных эффектов в зависимости от mWeatherCondition
     switch(mWeatherCondition) {
-        case 0:  // Clear
+        case 0:  // Ясно
             mSceneMgr->setFog(Ogre::FOG_NONE);
             break;
-        case 1:  // Light clouds
+        case 1:  // Легкая облачность
             mSceneMgr->setFog(Ogre::FOG_LINEAR, Ogre::ColourValue::White, 0.0001, 5000, 8000);
             break;
-        case 2:  // Heavy clouds/fog
+        case 2:  // Сплошная облачность / туман
             mSceneMgr->setFog(Ogre::FOG_EXP, Ogre::ColourValue(0.8, 0.8, 0.8), 0.001);
             break;
     }
     
-    // Adjust lighting based on time of day
-    float lightIntensity = 0.3f;  // Base ambient
+    // Настройка освещения в зависимости от времени суток
+    float lightIntensity = 0.3f;  // Базовый уровень
     if (mTimeOfDay >= 6 && mTimeOfDay <= 18) {
-        // Daytime - brighter
-        lightIntensity = 0.5f + 0.4f * (abs(12 - mTimeOfDay) / 12.0f);  // Brightest at noon
+        // Днем - ярче
+        lightIntensity = 0.5f + 0.4f * (abs(12 - mTimeOfDay) / 12.0f);  // Максимум в полдень
     } else {
-        // Nighttime - darker
+        // Ночью - темнее
         lightIntensity = 0.1f;
     }
     
@@ -461,8 +459,8 @@ void OgreFlightRender::updateWeather()
 
 bool OgreFlightRender::mouseMoved( const OIS::MouseEvent &arg )
 {
-    // Handle mouse movement for camera control during certain stages
-    if (mCurrentStage <= 3) {  // Allow external camera control in early stages
+     // Обработка движения мыши для управления камерой на ранних этапах
+    if (mCurrentStage <= 3) {  // Внешнее управление камерой разрешено только на этапах 1–3
         if (arg.state.buttonDown(OIS::MB_Left)) {
             // Rotate camera around aircraft
             if (mAircraftNode && mCamera) {
@@ -494,53 +492,53 @@ bool OgreFlightRender::mouseReleased( const OIS::MouseEvent &arg, OIS::MouseButt
 
 bool OgreFlightRender::keyPressed( const OIS::KeyEvent &arg )
 {
-    // Handle keyboard input for aircraft control
+    // Обработка клавиатуры для управления ВС
     switch(arg.key) {
-        case OIS::KC_W:  // Pitch up
+        case OIS::KC_W:  // Тангаж вверх
             mPitchInput = 1.0;
             break;
-        case OIS::KC_S:  // Pitch down
+        case OIS::KC_S:  // Тангаж вниз
             mPitchInput = -1.0;
             break;
-        case OIS::KC_A:  // Roll left
+        case OIS::KC_A:  // Крен влево
             mRollInput = -1.0;
             break;
-        case OIS::KC_D:  // Roll right
+        case OIS::KC_D:  // Крен вправо
             mRollInput = 1.0;
             break;
-        case OIS::KC_Q:  // Yaw left
+        case OIS::KC_Q:  // Рыскание влево
             mYawInput = -1.0;
             break;
-        case OIS::KC_E:  // Yaw right
+        case OIS::KC_E:  // Рыскание вправо
             mYawInput = 1.0;
             break;
-        case OIS::KC_R:  // Increase throttle
+        case OIS::KC_R:  // Увеличить тягу
             mThrottle = std::min(1.0, mThrottle + 0.1);
             mAirspeed = 100 + mThrottle * 200;  // Map throttle to airspeed
             break;
-        case OIS::KC_F:  // Decrease throttle
+        case OIS::KC_F:  // Уменьшить тягу
             mThrottle = std::max(0.0, mThrottle - 0.1);
             mAirspeed = 100 + mThrottle * 200;  // Map throttle to airspeed
             break;
-        case OIS::KC_SPACE:  // Reset aircraft position
+        case OIS::KC_SPACE:  // Сброс положения ВС
             ResetFlight();
             break;
-        case OIS::KC_1:  // Switch to stage 1
+        case OIS::KC_1:  // Этап 1
             SetTrainingStage(1);
             break;
-        case OIS::KC_2:  // Switch to stage 2
+        case OIS::KC_2:  // Этап 2
             SetTrainingStage(2);
             break;
-        case OIS::KC_3:  // Switch to stage 3
+        case OIS::KC_3:  // Этап 3
             SetTrainingStage(3);
             break;
-        case OIS::KC_4:  // Switch to stage 4
+        case OIS::KC_4:  // Этап 4
             SetTrainingStage(4);
             break;
-        case OIS::KC_5:  // Switch to stage 5
+        case OIS::KC_5:  // Этап 5
             SetTrainingStage(5);
             break;
-        case OIS::KC_I:  // Toggle instruments
+        case OIS::KC_I:  // Переключение видимости приборов
             mShowInstruments = !mShowInstruments;
             break;
     }
@@ -550,7 +548,7 @@ bool OgreFlightRender::keyPressed( const OIS::KeyEvent &arg )
 
 bool OgreFlightRender::keyReleased( const OIS::KeyEvent &arg )
 {
-    // Release controls when keys are released
+    // Сброс управляющих сигналов при отпускании клавиш
     switch(arg.key) {
         case OIS::KC_W:
         case OIS::KC_S:
@@ -604,7 +602,7 @@ void OgreFlightRender::SetAircraftControl(double pitchInput, double rollInput, d
     mYawInput = yawInput;
     mThrottle = throttle;
     
-    // Map throttle to airspeed (simplified)
+    // Зависимость скорости от тяги
     mAirspeed = 100 + throttle * 200;
 }
 
@@ -613,93 +611,93 @@ void OgreFlightRender::SetTrainingStage(int stage)
     if(stage >= 1 && stage <= 5) {
         mCurrentStage = stage;
         
-        // Adjust simulation parameters based on stage
+        // Настройка параметров в зависимости от этапа
         switch(stage) {
-            case 1:  // Aircraft familiarization
+            case 1:  // Знакомство с ВС
                 mShowInstruments = false;
                 break;
-            case 2:  // Basic maneuvers
+            case 2:  // Выполнение базовых маневров
                 mShowInstruments = true;
                 break;
-            case 3:  // Visual flight
+            case 3:  // Визуальный полет
                 mShowInstruments = true;
                 break;
-            case 4:  // Transition to instruments
+            case 4:  // Переход к приборам
                 mShowInstruments = true;
                 mWeatherCondition = 1;  // Light clouds
                 break;
-            case 5:  // Instrument flight
+            case 5:  // Приборный полет
                 mShowInstruments = true;
                 mWeatherCondition = 2;  // Heavy clouds/fog
                 break;
         }
         
-        // Update camera position for the new stage
+        // Обновление положения камеры в зависимости от этапа
         updateCameraForStage();
     }
 }
 
 void OgreFlightRender::SetTrainingScenario(int scenarioId)
 {
-    // Reset flight and set up a specific training scenario
+    // Сброс состояния и настройка конкретного учебного сценария
     ResetFlight();
     
     switch(scenarioId) {
-        case 1:  // Takeoff scenario
+        case 1:  // Взлет
             mPositionY = 100;  // On runway
             mAirspeed = 0;
             mAltitude = 100;
             break;
-        case 2:  // Cruise scenario
+        case 2:  // Крейсерский полет
             mPositionY = 1000;  // At cruise altitude
             mAirspeed = 200;    // At cruise speed
             mAltitude = 1000;
             break;
-        case 3:  // Landing approach
-            mPositionY = 300;   // On approach
-            mAirspeed = 150;    // Approach speed
+        case 3:  // Заход на посадку
+            mPositionY = 300;   // На глиссаде
+            mAirspeed = 150;    // Скорость захода
             mAltitude = 300;
-            mPitch = -0.1;      // Slight descent
+            mPitch = -0.1;      // Легкое снижение
             break;
     }
     
-    // Update aircraft position in the scene
+    // Обновление положения ВС в сцене
     if (mAircraftNode) {
         mAircraftNode->setPosition(mPositionX, mPositionY, mPositionZ);
     }
     
-    // Update camera for the current stage
+    // Обновление камеры в зависимости от этапа
     updateCameraForStage();
 }
 
 void OgreFlightRender::ResetFlight()
 {
-    // Reset aircraft to initial state
+    // Возврат ВС в исходное состояние
     mPositionX = 0.0;
-    mPositionY = 1000.0;  // 1000m altitude
+    mPositionY = 1000.0;  // Высота 1000 м
     mPositionZ = 0.0;
     mPitch = 0.0;
     mRoll = 0.0;
-    mYaw = 0.0;  // North heading
+    mYaw = 0.0;  // Курс на север
     mVelocityX = 0.0;
     mVelocityY = 0.0;
     mVelocityZ = 0.0;
     mAltitude = 1000.0;
-    mAirspeed = 150.0;  // 150 km/h
+    mAirspeed = 150.0;  // 150 км/ч
     mHeading = 0.0;
     mVerticalSpeed = 0.0;
     mPitchInput = 0.0;
     mRollInput = 0.0;
     mYawInput = 0.0;
-    mThrottle = 0.5;  // Half throttle
+    mThrottle = 0.5;  // 50% тяги
     
-    // Update aircraft node position
+    // Обновление узла ВС
     if (mAircraftNode) {
         mAircraftNode->setPosition(mPositionX, mPositionY, mPositionZ);
         mAircraftNode->resetOrientation();
     }
     
-    // Update camera for current stage
+    // Обновление камеры в зависимости от этапа
     updateCameraForStage();
 }
 
@@ -720,12 +718,11 @@ void OgreFlightRender::SetTimeOfDay(int hour)
 {
     if(hour >= 0 && hour <= 23) {
         mTimeOfDay = hour;
-        updateWeather();  // Time affects lighting
+        updateWeather();  // Освещение зависит от времени суток
     }
 }
 
 void OgreFlightRender::mouseMoved(int x, int y, int d)
 {
-    // Wrapper method for compatibility with interface
-    // Actual implementation is in the OIS version
+    // Адаптер для внешнего интерфейса: фактическая обработка ввода выполняется через OIS
 }

@@ -53,27 +53,27 @@ void TailViewAircraftSimulator::setup()
 {
     mRoot = new Ogre::Root("", "", "");
     
-    // Configure rendering system
+    // Настройка системы рендеринга
     Ogre::RenderSystem *renderSys = mRoot->getRenderSystemByName("OpenGL 3+");
     if (!renderSys) {
         renderSys = mRoot->getAvailableRenderers().begin()->second;
     }
     mRoot->setRenderSystem(renderSys);
     
-    // Initialize root without creating window yet
+    // Инициализация root без создания окна
     mRoot->initialise(false);
     
-    // Create window
+    // Создание окна
     Ogre::NameValuePairList params;
     params["title"] = "Aircraft Tail View Simulator";
     params["vsync"] = "false";
     mWindow = mRoot->createRenderWindow("Aircraft Tail View Simulator", 1200, 800, false, &params);
     
-    // Set up scene manager
+    // Настройка менеджера сцены
     mSceneMgr = mRoot->createSceneManager();
     mSceneMgr->setAmbientLight(Ogre::ColourValue(0.5, 0.5, 0.5));
     
-    // Set this class as a Window listener
+    // Установка этого класса как слушателя окна
     Ogre::WindowEventUtilities::addWindowEventListener(mWindow, this);
     
     createScene();
@@ -81,7 +81,7 @@ void TailViewAircraftSimulator::setup()
     setupLights();
     setupInput();
     
-    // Register as frame listener
+    // Регистрация как слушателя кадра
     mRoot->addFrameListener(this);
 }
 
@@ -95,7 +95,7 @@ void TailViewAircraftSimulator::shutdown()
 
 void TailViewAircraftSimulator::createScene()
 {
-    // Create ground plane
+    // Создание плоскости земли
     Ogre::Plane plane(Ogre::Vector3::UNIT_Y, 0);
     Ogre::MeshManager::getSingleton().createPlane(
         "ground",
@@ -112,39 +112,39 @@ void TailViewAircraftSimulator::createScene()
     groundEntity->setCastShadows(false);
     mSceneMgr->getRootSceneNode()->createChildSceneNode()->attachObject(groundEntity);
     
-    // Create sky
+    // Создание неба
     mSceneMgr->setSkyDome(true, "Examples/CloudySky", 5, 8);
     
-    // Create a basic aircraft model using primitives
+    // Создание базовой модели самолета с использованием примитивов
     createAircraftModel();
 }
 
 void TailViewAircraftSimulator::createAircraftModel()
 {
-    // For now, we'll create a simple box to represent the aircraft
-    // In a real implementation, we would load a 3D aircraft model
-    Ogre::Entity* fuselage = mSceneMgr->createEntity("fuselage.mesh"); // Placeholder
+    // Пока что мы создадим простой куб для представления самолета
+    // В реальной реализации мы бы загружали 3D модель самолета
+    Ogre::Entity* fuselage = mSceneMgr->createEntity("fuselage.mesh"); // Заглушка
     
-    // If the mesh doesn't exist, create a simple representation
+    // Если меш не существует, создать простое представление
     try {
         mAircraftEntity = mSceneMgr->createEntity("fuselage.mesh");
     } catch (...) {
-        // Create a simple aircraft representation using basic geometry
+        // Создание простого представления самолета с использованием базовой геометрии
         mAircraftEntity = mSceneMgr->createEntity("AircraftBody", Ogre::SceneManager::PT_CUBE);
-        mAircraftEntity->setScale(3.0, 0.8, 1.0); // Make it look like a fuselage
+        mAircraftEntity->setScale(3.0, 0.8, 1.0); // Сделать похожим на фюзеляж
     }
     
     mAircraftNode = mSceneMgr->getRootSceneNode()->createChildSceneNode();
     mAircraftNode->attachObject(mAircraftEntity);
     mAircraftNode->setPosition(0, mAltitude, 0);
     
-    // Add wings and tail as separate entities for better visualization
+    // Добавление крыльев и хвоста как отдельных сущностей для лучшей визуализации
     try {
         Ogre::Entity* wingEntity = mSceneMgr->createEntity("wing.mesh");
         Ogre::SceneNode* wingNode = mAircraftNode->createChildSceneNode("Wings");
         wingNode->attachObject(wingEntity);
     } catch (...) {
-        // Create simple wing representation
+        // Создание простого представления крыльев
         Ogre::Entity* wingEntity = mSceneMgr->createEntity("AircraftWings", Ogre::SceneManager::PT_CUBE);
         wingEntity->setScale(0.2, 6.0, 1.0);
         Ogre::SceneNode* wingNode = mAircraftNode->createChildSceneNode("Wings");
@@ -159,11 +159,11 @@ void TailViewAircraftSimulator::setupCamera()
     mCamera->setNearClipDistance(5);
     mCamera->setFarClipDistance(50000);
     
-    // Set up camera to follow aircraft from tail view
+    // Настройка камеры для слежения за самолетом с хвостового вида
     mCameraNode = mSceneMgr->getRootSceneNode()->createChildSceneNode("CameraNode");
     mCameraNode->attachObject(mCamera);
     
-    // Position camera behind and above the aircraft
+    // Позиционирование камеры сзади и над самолетом
     mCameraNode->setPosition(0, mAltitude + 10, 20);
     mCameraNode->lookAt(mAircraftNode->_getDerivedPosition(), Ogre::Node::TS_WORLD);
 }
@@ -192,11 +192,11 @@ void TailViewAircraftSimulator::setupInput()
     mMouse = static_cast<OIS::Mouse*>(mInputManager->createInputObject(OIS::OISMouse, true));
     mJoyStick = nullptr;
     
-    // Look for connected joysticks
+    // Поиск подключенных джойстиков
     if (mInputManager->numJoySticks() > 0) {
         mJoyStick = static_cast<OIS::JoyStick*>(mInputManager->createInputObject(OIS::OISJoyStick, true));
         
-        // Set this as the joystick listener
+        // Установка этого класса как слушателя джойстика
         mJoyStick->setEventCallback(this);
     } else {
         std::cout << "No joystick found!" << std::endl;
@@ -222,16 +222,16 @@ bool TailViewAircraftSimulator::frameRenderingQueued(const Ogre::FrameEvent& fe)
     updateFlightParameters(fe);
     updateAircraft(fe);
     
-    // Update camera position to maintain tail view
+    // Обновление позиции камеры для поддержания хвостового вида
     Ogre::Vector3 aircraftPos = mAircraftNode->_getDerivedPosition();
     Ogre::Quaternion aircraftOrientation = mAircraftNode->_getDerivedOrientation();
     
-    // Calculate camera position behind the aircraft
-    Ogre::Vector3 offset(-20, 10, 0); // Start with offset in aircraft local space
+    // Расчет позиции камеры сзади самолета
+    Ogre::Vector3 offset(-20, 10, 0); // Начальный сдвиг в локальном пространстве самолета
     Ogre::Vector3 worldOffset = aircraftOrientation * offset;
     mCameraNode->setPosition(aircraftPos + worldOffset);
     
-    // Make camera look at aircraft
+    // Заставить камеру смотреть на самолет
     mCameraNode->setFixedYawAxis(true);
     mCameraNode->lookAt(aircraftPos, Ogre::Node::TS_WORLD);
     
@@ -244,21 +244,21 @@ void TailViewAircraftSimulator::updateJoystickInput()
     
     const OIS::JoyStickState &state = mJoyStick->getJoyStickState();
     
-    // Map joystick axes to aircraft controls
-    // Axis 0: X-axis (typically aileron/roll control)
+    // Сопоставление осей джойстика с элементами управления самолетом
+    // Ось 0: X-ось (обычно элероны/управление креном)
     mStickX = static_cast<float>(state.mAxes[0].abs) / 32768.0f - 1.0f;
     
-    // Axis 1: Y-axis (typically elevator/pitch control) 
+    // Ось 1: Y-ось (обычно элеватор/управление тангажем) 
     mStickY = static_cast<float>(state.mAxes[1].abs) / 32768.0f - 1.0f;
     
-    // Axis 2: Rudder (typically Z-axis or slider)
+    // Ось 2: Руль (обычно Z-ось или слайдер)
     if (state.mAxes.size() > 2) {
         mRudder = static_cast<float>(state.mAxes[2].abs) / 32768.0f - 1.0f;
     }
     
-    // Throttle might be on a slider or another axis
+    // Регулятор тяги может быть на слайдере или другой оси
     if (state.mAxes.size() > 3) {
-        mThrottle = static_cast<float>(state.mAxes[3].abs) / 65536.0f; // 0 to 1 range
+        mThrottle = static_cast<float>(state.mAxes[3].abs) / 65536.0f; // диапазон от 0 до 1
     }
 }
 
@@ -269,31 +269,31 @@ void TailViewAircraftSimulator::updateFlightParameters(const Ogre::FrameEvent& f
     const float rollRate = 1.0f;   // rad/s
     const float yawRate = 0.3f;    // rad/s
     
-    // Update angular rates based on stick positions
-    float pitchChange = -mStickY * pitchRate * dt;  // Negative because y-axis is inverted
+    // Обновление угловых скоростей на основе положения стика
+    float pitchChange = -mStickY * pitchRate * dt;  // Отрицательное значение, потому что ось y инвертирована
     float rollChange = mStickX * rollRate * dt;
     float yawChange = mRudder * yawRate * dt;
     
-    // Apply limits to prevent excessive attitude changes
+    // Применение ограничений для предотвращения чрезмерного изменения положения
     mPitch += pitchChange;
     mRoll += rollChange;
     mYaw += yawChange;
     
-    // Apply limits
+    // Применение ограничений
     mPitch = std::max(-Ogre::Math::PI/2, std::min(Ogre::Math::PI/2, mPitch));
     mRoll = std::max(-Ogre::Math::PI/2, std::min(Ogre::Math::PI/2, mRoll));
     
-    // Update velocity based on throttle and pitch
-    float thrust = (mThrottle - 0.5f) * 20.0f;  // -10 to +10 m/s^2
-    float drag = -0.1f * mVelocity;             // Simple drag model
+    // Обновление скорости на основе тяги и тангажа
+    float thrust = (mThrottle - 0.5f) * 20.0f;  // от -10 до +10 м/с^2
+    float drag = -0.1f * mVelocity;             // Простая модель сопротивления
     float netForce = thrust + drag;
     mVelocity += netForce * dt;
-    mVelocity = std::max(10.0f, mVelocity);  // Minimum speed to keep flying
+    mVelocity = std::max(10.0f, mVelocity);  // Минимальная скорость для продолжения полета
     
-    // Calculate altitude change based on pitch
+    // Расчет изменения высоты на основе тангажа
     float altitudeChange = mVelocity * sin(mPitch) * dt;
     mAltitude += altitudeChange;
-    mAltitude = std::max(10.0f, mAltitude);  // Don't go underground
+    mAltitude = std::max(10.0f, mAltitude);  // Не опускаться под землю
 }
 
 void TailViewAircraftSimulator::updateAircraft(const Ogre::FrameEvent& fe)

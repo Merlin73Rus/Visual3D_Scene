@@ -31,22 +31,22 @@ public:
     void Resize(int width, int height);
     void Update();
 
-    // OIS::MouseListener
+    // Обработчики событий мыши (OIS)
     bool mouseMoved( const OIS::MouseEvent &arg );
     bool mousePressed( const OIS::MouseEvent &arg, OIS::MouseButtonID id );
     bool mouseReleased( const OIS::MouseEvent &arg, OIS::MouseButtonID id );
 
-    // OIS::KeyListener
+    // Обработчики событий клавиатуры (OIS)
     bool keyPressed( const OIS::KeyEvent &arg );
     bool keyReleased( const OIS::KeyEvent &arg );
 
-    // FrameListener
+    // Обработчики событий кадрового цикла
     virtual bool frameStarted(const Ogre::FrameEvent& evt);
     virtual bool frameEnded(const Ogre::FrameEvent& evt);
 
     void createFrameListener();
 
-    // Flight simulation methods
+    // Методы управления и получения данных о полете
     void GetAircraftPosition(double &x, double &y, double &z);
     void GetAircraftAttitude(double &pitch, double &roll, double &yaw);
     void GetFlightInstruments(double &altitude, double &airspeed, double &heading, double &verticalSpeed);
@@ -74,7 +74,7 @@ private:
     void updateWeather();
     void updateEnvironment();
 
-    // OGRE objects
+    // Объекты OGRE
     Ogre::Root *mRoot;
     Ogre::SceneManager* mSceneMgr;
     Ogre::RenderWindow* mWindow;
@@ -84,29 +84,29 @@ private:
     Ogre::SceneNode* mAircraftNode;
     Ogre::Light* mLight;
 
-    // OIS Input devices
+    // Устройства ввода
     OIS::InputManager* mInputManager;
     OIS::Mouse* mMouse;
     OIS::Keyboard* mKeyboard;
 
-    // CEGUI objects
+    // Объекты графического интерфейса
     CEGUI::OgreRenderer* mGUIRenderer;
     CEGUI::Window* mSheet;
 
-    // Flight simulation variables
+    // Параметры состояния воздушного судна
     double mPositionX, mPositionY, mPositionZ;
     double mPitch, mRoll, mYaw;           // Aircraft attitude
     double mVelocityX, mVelocityY, mVelocityZ;
     double mAltitude, mAirspeed, mHeading, mVerticalSpeed;
     double mPitchInput, mRollInput, mYawInput, mThrottle;
     
-    // Training parameters
-    int mCurrentStage;                    // Current training stage (1-5)
-    int mWeatherCondition;                // Weather condition (clear, cloudy, foggy, etc.)
-    int mTimeOfDay;                       // Hour of day (0-23)
-    bool mShowInstruments;                // Whether to display flight instruments
+    // Параметры учебного режима
+    int mCurrentStage;                    // текущий этап полета (1-5)
+    int mWeatherCondition;                // Погодные условия (ясно, облачно, туман)
+    int mTimeOfDay;                       // Время суток (0–23)
+    bool mShowInstruments;                // Отображать ли приборную панель
     
-    // Simulation state
+    // Состояние симуляции
     bool m_bShutDown;
     bool m_bRender;
     bool m_bPause;
